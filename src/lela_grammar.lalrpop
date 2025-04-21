@@ -1,0 +1,64 @@
+use std::str::FromStr;
+use crate::lela::{Scope, Program, Expression, Operator};
+
+grammar;
+
+Expr: Box<Expression> = {
+    "(" <a:Expr> <op:ExprOp> <b:Expr> ")" => Box::new(Expression::Operation(op, a, b)), 
+    "[" <list:ListEntries> "]" => Box::new(Expression::List(list)),
+    FunctionExpression,
+    Term,
+    Identifier
+};
+
+// Expressions:
+FunctionExpression: Box<Expression> = {
+    <name:Identifier> "(" <params:ListEntries> ")" => {
+        // we must hope that lalrpop doesn't put something other than an 
+        // identifier expression in a function call
+        match *name {
+            Expression::Identifier(x) => Box::new(Expression::FunctionCall(x, params)),
+            _ => panic!("something terribly wrong has happened...")  
+        }
+    }
+}
+
+ExprOp: Operator = {
+    "+" => Operator::Add,
+    "-" => Operator::Subtract,
+    "*" => Operator::Multiply,
+    "/" => Operator::Divide,
+};
+
+
+ListEntries: Vec<Box<Expression>> = {
+    <first:Expr> <rest:ListEntry*> => { 
+            let mut new_rest = rest;
+            new_rest.insert(0, first);
+            new_rest
+        }
+}
+
+Identifier: Box<Expression> = {
+    r"[A-Za-z]+[A-Za-z0-9?_-]*" => Box::new(Expression::Identifier(<>.to_string()))
+}
+
+ListEntry: Box<Expression> = {
+    "," <e:Expr> => e
+}
+
+
+
+Term: Box<Expression> = {
+    Num => Box::new(Expression::Number(<>)),
+    "(" <Expr> ")"
+};
+
+VariableDefinition: 
+
+// Maximum: 4294967296 possible integers
+// supports numbers between -2,147,483,647 and 2,147,483,647
+// which, in my opinion, is a reasonable amount at the moment
+Num: i32 = {
+    r"[-]?[0-9]+" => i32::from_str(<>).unwrap()
+};
