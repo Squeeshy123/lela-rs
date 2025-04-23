@@ -1,7 +1,30 @@
 use std::str::FromStr;
-use crate::lela::{Scope, Program, Expression, Operator};
+use crate::lela::{Scope, ProgramEntry, Expression, Operator};
 
 grammar;
+
+pub DefinitionOrExpression: Box<ProgramEntry> = {
+    <Expr> => Box::new(ProgramEntry::Expression(<>)),
+    <Definition>
+}
+
+Definition: Box<ProgramEntry> = {
+    ConstantDefinition,
+    FunctionDefinition
+}
+
+ConstantDefinition: Box<ProgramEntry> = {
+    "let" <ident:Identifier> "=" <exp:Expr> => {
+        match *ident {
+            Expression::Identifier(name) => Box::new(ProgramEntry::Definition(name, exp)),
+            _ => unreachable!()
+        }
+    }
+}
+
+FunctionDefinition: Box<ProgramEntry> = {
+    "func" <ident:Identifier> "(" <params: ListEntries> ")" "{" <answer:Expr> "}" => 
+}
 
 Expr: Box<Expression> = {
     "(" <a:Expr> <op:ExprOp> <b:Expr> ")" => Box::new(Expression::Operation(op, a, b)), 
@@ -54,7 +77,6 @@ Term: Box<Expression> = {
     "(" <Expr> ")"
 };
 
-VariableDefinition: 
 
 // Maximum: 4294967296 possible integers
 // supports numbers between -2,147,483,647 and 2,147,483,647

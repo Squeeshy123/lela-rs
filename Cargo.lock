@@ -194,14 +194,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lalrpop-test"
-version = "0.1.0"
-dependencies = [
- "lalrpop",
- "lalrpop-util 0.21.0",
-]
-
-[[package]]
 name = "lalrpop-util"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -218,6 +210,14 @@ checksum = "e8d05b3fe34b8bd562c338db725dfa9beb9451a48f65f129ccb9538b48d2c93b"
 dependencies = [
  "regex-automata",
  "rustversion",
+]
+
+[[package]]
+name = "lela-rs"
+version = "0.1.0"
+dependencies = [
+ "lalrpop",
+ "lalrpop-util 0.21.0",
 ]
 
 [[package]]
