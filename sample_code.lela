@@ -1,4 +1,7 @@
 let fifteen = 15;
+func add(a, b) {
+    (a + b)
+};
 (10 + 12);
 (10 + fifteen);
 (10 + -5);

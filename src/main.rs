@@ -1,11 +1,12 @@
-use std::env;
-use std::fs;
-use std::collections::HashMap;
+use crate::lela_grammar::DefinitionOrExpressionParser;
 use lalrpop_util::lalrpop_mod;
-use lela::evaluate_expression;
 use lela::Expression;
 use lela::ProgramEntry;
-use crate::lela_grammar::DefinitionOrExpressionParser;
+use lela::evaluate_expression;
+use lela::Value;
+use std::collections::HashMap;
+use std::env;
+use std::fs;
 pub mod lela;
 
 lalrpop_mod!(pub lela_grammar); // synthesized by LALRPOP
@@ -18,11 +19,15 @@ fn test_valid_parsings() {
         "(22 + 3)",
         "(17 / Fire?)",
         "this_is_a_function_call(these, are, parameters)",
-        "[line,\n breaks, \n should, \n be, \n fine]"
+        "[line,\n breaks, \n should, \n be, \n fine]",
     ];
     let parser = lela_grammar::DefinitionOrExpressionParser::new();
     for string in good_code.iter() {
-        assert!(parser.parse(string).is_ok(), "Parsing failed. Input = {}", string);
+        assert!(
+            parser.parse(string).is_ok(),
+            "Parsing failed. Input = {}",
+            string
+        );
     }
 }
 
@@ -33,31 +38,39 @@ fn test_invalid_parsings() {
         "50Fire",
         "[), (]",
         "(17 /- Fire?)",
-        "this_isnt_a_function_call[these, arent, parameters]"
+        "this_isnt_a_function_call[these, arent, parameters]",
     ];
     let parser = lela_grammar::DefinitionOrExpressionParser::new();
     for string in bad_code.iter() {
-        assert!(parser.parse(string).is_err(), "Parsing succeeded when it should've failed. Input = {}", string);
+        assert!(
+            parser.parse(string).is_err(),
+            "Parsing succeeded when it should've failed. Input = {}",
+            string
+        );
     }
 }
-
 
 #[test]
 fn test_identifier_evaluation() {
     // create a scope
     let mut scope_map = HashMap::new();
-    let new_expr = &Box::new(lela::Expression::Number(15));
+    let new_expr = Box::new(lela::Definition::ConstantDefinition(
+        "fifteen".to_string(),
+        Box::new(lela::Expression::ValueExpr(Value::Number(15.to_string()))),
+    ));
     scope_map.insert("fifteen".to_string(), new_expr);
-    let scope = lela::Scope{definitions: scope_map};
+    let scope = lela::Scope {
+        definitions: scope_map,
+    };
     // create an expression that uses an identifier from the scope, and be sure that
     // it is properly evaluated
     let test_expression = Box::new(lela::Expression::Operation(
-                                    lela::Operator::Add,
-                                    Box::new(lela::Expression::Number(5)),
-                                    Box::new(lela::Expression::Identifier("fifteen".to_string()))));
+        lela::Operator::Add,
+        Box::new(lela::Expression::ValueExpr(Value::Number(5.to_string()))),
+        Box::new(lela::Expression::Identifier("fifteen".to_string())),
+    ));
 
-    
-    assert_eq!(lela::evaluate_expression(&test_expression, &scope), 20);    
+    assert_eq!(lela::evaluate_expression(&test_expression, &scope), Value::Number(20.to_string()));
 }
 
 // Reads the contents of a file, given its relative path.
@@ -70,7 +83,7 @@ fn split_as_program(src: &String) -> Vec<String> {
     src.split(";").map(|s| s.to_string()).collect()
 }
 
-// Reads a file and splits it as a program 
+// Reads a file and splits it as a program
 fn read_program_from_file(file_path: &String) -> Vec<String> {
     let source = read_from_file(file_path);
     let split_file_input = split_as_program(&source);
@@ -78,10 +91,20 @@ fn read_program_from_file(file_path: &String) -> Vec<String> {
     contents
 }
 
-// Produces parsed ASTs given a vector of strings  
-fn parse_program_strings(source: &Vec<String>) -> Vec<Result<Box<ProgramEntry>, lalrpop_util::ParseError<usize, lalrpop_util::lexer::Token<'_>, &str>>> {
+// Produces parsed ASTs given a vector of strings
+fn parse_program_strings(
+    source: &Vec<String>,
+) -> Vec<
+    Result<
+        Box<ProgramEntry>,
+        lalrpop_util::ParseError<usize, lalrpop_util::lexer::Token<'_>, &str>,
+    >,
+> {
     let parser = DefinitionOrExpressionParser::new();
-    let output = source.iter().map(|input_line| parser.parse(input_line)).collect();
+    let output = source
+        .iter()
+        .map(|input_line| parser.parse(input_line))
+        .collect();
     output
 }
 
@@ -92,10 +115,17 @@ fn test_program_reading() {
 
     let input = "sample_code.lela".to_string();
     let program_read = read_program_from_file(&input);
-    println!("{:?}", program_read);
-    println!("{:?}", parse_program_strings(&program_read));
+    let mut global_scope = lela::Scope {
+        definitions: HashMap::new(),
+    };
+    let cleaned_program = lela::filter_errors(parse_program_strings(&program_read).into());
+    // Create answers from our expressions
+    let answers = lela::evaluate_program(&cleaned_program, &mut global_scope);
+    // Prints the evaluations
+    for ans in answers {
+        println!("{:?}", ans)
+    }
 }
-
 
 
 fn main() {
@@ -106,17 +136,16 @@ fn main() {
     let parsed = parse_program_strings(&read);
     println!("{:?}", parsed);
 
+    let mut global_scope = lela::Scope {
+        definitions: HashMap::new(),
+    };
 
-    let mut global_scope = lela::Scope{definitions: HashMap::new()};
-    
+    let cleaned_program = lela::filter_errors(parsed.into());
+
     // Create answers from our expressions
-    let answers = 
+    let answers = lela::evaluate_program(&cleaned_program, &mut global_scope);
     // Prints the evaluations
-    for answer in answers {
-        match answer {
-            Some(x) => println!("{x}"),
-            // I really don't want anything to happen here...
-            None => print!("")
-        }
+    for ans in answers {
+        println!("{:?}", ans)
     }
 }

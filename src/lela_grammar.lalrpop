@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use crate::lela::{Scope, ProgramEntry, Expression, Operator};
+use crate::lela::{Scope, ProgramEntry, Definition, Expression, Operator, Value};
 
 grammar;
 
@@ -14,16 +14,25 @@ Definition: Box<ProgramEntry> = {
 }
 
 ConstantDefinition: Box<ProgramEntry> = {
-    "let" <ident:Identifier> "=" <exp:Expr> => {
+    "let" <ident:Identifier> "=" <exp:Expr> => 
         match *ident {
-            Expression::Identifier(name) => Box::new(ProgramEntry::Definition(name, exp)),
-            _ => unreachable!()
+            Expression::Identifier(name) => Box::new(ProgramEntry::Definition(Definition::ConstantDefinition(name, exp))),
+            _ => unreachable!("did not parse as identifier")
         }
-    }
+    
 }
 
 FunctionDefinition: Box<ProgramEntry> = {
-    "func" <ident:Identifier> "(" <params: ListEntries> ")" "{" <answer:Expr> "}" => 
+    "func" <ident:IdentifierToken> "(" <params: ListEntries> ")" "{" <answer:Expr> "}" => {
+        let mut string_params: Vec<String> = Vec::new();
+        for expr in params {
+            match *expr {
+                Expression::Identifier(name) => string_params.push(name),
+                _ => {}
+            }
+        }
+        Box::new(ProgramEntry::Definition(Definition::FunctionDefinition(ident, string_params, answer)))
+    }
 }
 
 Expr: Box<Expression> = {
@@ -62,8 +71,12 @@ ListEntries: Vec<Box<Expression>> = {
         }
 }
 
+IdentifierToken: String = {
+    r"[A-Za-z]+[A-Za-z0-9?_-]*" => <>.to_string()
+}
+
 Identifier: Box<Expression> = {
-    r"[A-Za-z]+[A-Za-z0-9?_-]*" => Box::new(Expression::Identifier(<>.to_string()))
+   <i:IdentifierToken> => Box::new(Expression::Identifier(i))
 }
 
 ListEntry: Box<Expression> = {
@@ -73,7 +86,7 @@ ListEntry: Box<Expression> = {
 
 
 Term: Box<Expression> = {
-    Num => Box::new(Expression::Number(<>)),
+    Num => Box::new(Expression::ValueExpr(Value::Number(<>))),
     "(" <Expr> ")"
 };
 
@@ -81,6 +94,6 @@ Term: Box<Expression> = {
 // Maximum: 4294967296 possible integers
 // supports numbers between -2,147,483,647 and 2,147,483,647
 // which, in my opinion, is a reasonable amount at the moment
-Num: i32 = {
-    r"[-]?[0-9]+" => i32::from_str(<>).unwrap()
+Num: String = {
+    r"[-]?[0-9]+" => <>.to_string()
 };
