@@ -1,11 +1,10 @@
-use std::str::FromStr;
-use crate::lela::{Scope, ProgramEntry, Definition, Expression, Operator, Value};
+use crate::lela::{ProgramEntry, Definition, Expression, Operator, Value};
 
 grammar;
 
 pub DefinitionOrExpression: Box<ProgramEntry> = {
-    <Expr> => Box::new(ProgramEntry::Expression(<>)),
-    <Definition>
+    <Definition>,
+    <Expr> => Box::new(ProgramEntry::Expression(<>))
 }
 
 Definition: Box<ProgramEntry> = {
@@ -36,12 +35,45 @@ FunctionDefinition: Box<ProgramEntry> = {
 }
 
 Expr: Box<Expression> = {
-    "(" <a:Expr> <op:ExprOp> <b:Expr> ")" => Box::new(Expression::Operation(op, a, b)), 
+    Term,
+    Identifier,
+    "(" <a:Expr> <op:ExprOp> <b:Expr> ")" => Box::new(Expression::Operation(op, a, b)),
     "[" <list:ListEntries> "]" => Box::new(Expression::List(list)),
     FunctionExpression,
-    Term,
-    Identifier
+    ConditionalExpression
 };
+
+ConditionalExpression: Box<Expression> = {
+    <IfExpression>,
+    <ConditionalTreeExpression>
+}
+
+IfExpression: Box<Expression> = {
+
+    "if" <condition: Expr> "{" <then: Expr> "}" "else" "{" <otherwise: Expr> "}" => {
+        let cases = vec![condition, Box::new(Expression::ValueExpr(Value::Boolean("#true".to_string())))];
+        let values = vec![then, otherwise];
+        Box::new(Expression::ConditionalTree(cases, values))
+    }
+}
+
+//
+ConditionalTreeExpression: Box<Expression> = {
+    "switch" "{" <cases: ConditionalTreeBranch+> "}" => {
+        // There's likely some more 'rusty' way to handle this
+        let mut conditions = Vec::new();
+        let mut values = Vec::new();
+        for (cond, value) in cases.into_iter() {
+            conditions.push(cond);
+            values.push(value);
+        }
+        Box::new(Expression::ConditionalTree(conditions, values))
+    }
+}
+
+ConditionalTreeBranch: (Box<Expression>, Box<Expression>) = {
+    "case" <cond: Expr> ":" <value: Expr> "," => (cond, value)
+}
 
 // Expressions:
 FunctionExpression: Box<Expression> = {
@@ -50,7 +82,7 @@ FunctionExpression: Box<Expression> = {
         // identifier expression in a function call
         match *name {
             Expression::Identifier(x) => Box::new(Expression::FunctionCall(x, params)),
-            _ => panic!("something terribly wrong has happened...")  
+            _ => panic!("somehow a function call was parsed that involves a name that isn't an identifier")
         }
     }
 }
@@ -60,11 +92,17 @@ ExprOp: Operator = {
     "-" => Operator::Subtract,
     "*" => Operator::Multiply,
     "/" => Operator::Divide,
+    "&&" => Operator::And,
+    "||" => Operator::Or,
+    "==" => Operator::Equals,
 };
 
 
 ListEntries: Vec<Box<Expression>> = {
-    <first:Expr> <rest:ListEntry*> => { 
+    <first:Expr> <rest:ListEntry*> => {
+            // It's possible that this may be quicker if this function were
+            // a vector containing only first then was appended the rest.
+            // This runs in O(N) time with n being how many elements are in rest
             let mut new_rest = rest;
             new_rest.insert(0, first);
             new_rest
@@ -87,6 +125,9 @@ ListEntry: Box<Expression> = {
 
 Term: Box<Expression> = {
     Num => Box::new(Expression::ValueExpr(Value::Number(<>))),
+
+    r"#true" => Box::new(Expression::ValueExpr(Value::Boolean(<>.to_string()))),
+    r"#false" => Box::new(Expression::ValueExpr(Value::Boolean(<>.to_string()))),
     "(" <Expr> ")"
 };
 
@@ -95,5 +136,5 @@ Term: Box<Expression> = {
 // supports numbers between -2,147,483,647 and 2,147,483,647
 // which, in my opinion, is a reasonable amount at the moment
 Num: String = {
-    r"[-]?[0-9]+" => <>.to_string()
+    r"[-]?[0-9]+" => <>.to_string(),
 };

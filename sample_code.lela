@@ -2,8 +2,28 @@ let fifteen = 15;
 func add(a, b) {
     (a + b)
 };
+
+func factorial(n) {
+    switch {
+        case (n == 1): (1),
+        case #true: (n * factorial((n - 1))),
+    }
+};
+
+factorial(5);
+
+
+(15 == 15);
+
 (10 + 12);
-(10 + fifteen);
 (10 + -5);
-add(10, 
-    12)
+add(10, 12);
+if (15 == 15) {
+    (200 + 50)
+} else {
+    (2 + 2)
+};
+switch {
+    case (fifteen == 15): (150000),
+    case #true: (-100),
+}
