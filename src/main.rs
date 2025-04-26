@@ -117,12 +117,12 @@ fn test_proper_conditional_parsing() {
 #[test]
 fn test_valid_evaluations() {
     let fifteen = Expression::ValueExpr(Value::Number(15.to_string()));
-    let two = Expression::ValueExpr(Value::Number(2.to_string()));
+    // let two = Expression::ValueExpr(Value::Number(2.to_string()));
     let one_and_a_half = Expression::ValueExpr(Value::Number(1.5.to_string()));
     let also_one_and_a_half = Expression::ValueExpr(Value::Number("3/2".to_string()));
-    let hello = Expression::ValueExpr(Value::String("hello".to_string()));
-    let true_val = Expression::ValueExpr(Value::String("true".to_string()));
-    let false_val = Expression::ValueExpr(Value::Boolean("false".to_string()));
+    // let hello = Expression::ValueExpr(Value::String("hello".to_string()));
+    // let true_val = Expression::ValueExpr(Value::String("true".to_string()));
+    // let false_val = Expression::ValueExpr(Value::Boolean("false".to_string()));
 
     let thirty_added = Expression::Operation(Operator::Add,
                                              Box::new(fifteen.clone()),
@@ -131,6 +131,7 @@ fn test_valid_evaluations() {
                                             Box::new(one_and_a_half.clone()),
                                             Box::new(also_one_and_a_half.clone()));
     let test_scope = create_empty_scope();
+
 
     assert_eq!(lela::evaluate_expression(&Box::new(thirty_added), &test_scope).unwrap(), Value::Number(30.to_string()));
     assert_eq!(lela::evaluate_expression(&Box::new(three_added), &test_scope).unwrap(), Value::Number(3.to_string()));
@@ -237,14 +238,14 @@ fn main() {
     let file_path = &args[1];
     let read = read_program_from_file(file_path);
     println!("{:?}", read);
-    let mut parsed = parse_program_strings(&read);
+    let parsed = parse_program_strings(&read);
     println!("{:?}", parsed);
 
     let mut global_scope = lela::Scope {
         definitions: HashMap::new(),
     };
 
-    let mut cleaned_program:Vec<Result<Box<ProgramEntry>, LelaError>> = clean_program(parsed);
+    let cleaned_program:Vec<Result<Box<ProgramEntry>, LelaError>> = clean_program(parsed);
 
     // Create answers from our expressions
     let answers = lela::evaluate_program(cleaned_program, &mut global_scope);

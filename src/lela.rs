@@ -57,15 +57,6 @@ fn parse_boolean(val: &String) -> Result<bool, LelaError> {
     }
 }
 
-fn same_type(val_a: &Value, val_b: &Value) -> bool {
-    match (val_a, val_b) {
-        (Value::Number(_), Value::Number(_)) => true,
-        (Value::String(_), Value::String(_)) => true,
-        (Value::Boolean(_), Value::Boolean(_)) => true,
-        (_, _) => false,
-    }
-}
-
 // Defines a function that takes two Values of the same type.
 macro_rules! define_uniform_value_function {
     ($func_name:ident, $first_type:pat, $sec_type:pat, $to_do:block) => {
@@ -129,6 +120,9 @@ pub enum Expression {
     FunctionCall(String, Vec<Box<Expression>>),
 }
 
+// Given a Vec of results between program entries and errors,
+// evaluate each element that is an expression
+//
 pub fn evaluate_program(
     clean_program: Vec<Result<Box<ProgramEntry>, LelaError>>,
     scope: &mut Scope,
