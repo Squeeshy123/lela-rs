@@ -1,35 +1,71 @@
 let fifteen = 15;
 
+struct BinTree [val, left, right];
+
 func add(a, b) {
     (a + b)
 };
 
 func factorial(n) {
     switch {
+        case (n is 0): 1,
         case #true: (n * factorial((n - 1))),
     }
 };
-factorial(7);
 
-func square(a) {
-    (a*a)
+factorial(5);
+
+func exp(n, x) {
+    switch {
+        case (x is 0): (1),
+        case #true: (n * exp(n, (x - 1))),
+    }
 };
 
+exp(2, 1);
+
+func square(a) {
+    (a * a)
+};
 square(5);
 
-(fifteen == 10);
+func exp_with_square(n, x) {
+    switch {
+        case (x is 1):
+            (n),
+        case (x is 0):
+            (1),
+        case #true:
+            (square(n) * exp_with_square(n, (x - 2))),
+    }
+};
+
+(exp_with_square(5, 3));
+
+func not(a) {
+    if (a) {
+        #false
+    } else {
+        #true
+    }
+};
+
+not(#false);
+
+func implies(a, b) {
+    (b or not(a))
+};
+
+implies(#true, #false);
 
 (10 + 12);
 (10 + -5);
+
 add(10, 12);
 
-if (15 == 15) {
-    (200 + 50)
-} else {
-    (2 + 2)
-};
+let the_other_one = 10;
 
 switch {
-    case (fifteen == 15): 150000,
+    case (fifteen is 15): 150000,
     case #true: -100,
 }

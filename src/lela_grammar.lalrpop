@@ -9,26 +9,26 @@ pub DefinitionOrExpression: Box<ProgramEntry> = {
 
 Definition: Box<ProgramEntry> = {
     ConstantDefinition,
-    FunctionDefinition
+    FunctionDefinition,
+    StructDefinition
+}
+
+StructDefinition: Box<ProgramEntry> = {
+    "struct" <name:IdentifierToken> "[" <fields:ListEntries<IdentifierToken>> "]" => {
+        Box::new(ProgramEntry::Definition(Definition::StructDefinition(name, fields)))
+    }
 }
 
 ConstantDefinition: Box<ProgramEntry> = {
-    "let" <ident:Identifier> "=" <exp:Expr> => 
-        match *ident {
-            Expression::Identifier(name) => Box::new(ProgramEntry::Definition(Definition::ConstantDefinition(name, exp))),
-            _ => unreachable!("did not parse as identifier")
-        }
-    
+    "let" <ident:IdentifierToken> "=" <exp:Expr> =>
+            Box::new(ProgramEntry::Definition(Definition::ConstantDefinition(ident, exp)))
 }
 
 FunctionDefinition: Box<ProgramEntry> = {
-    "func" <ident:IdentifierToken> "(" <params: ListEntries> ")" "{" <answer:Expr> "}" => {
+    "func" <ident:IdentifierToken> "(" <params: ListEntries<IdentifierToken>> ")" "{" <answer:Expr> "}" => {
         let mut string_params: Vec<String> = Vec::new();
-        for expr in params {
-            match *expr {
-                Expression::Identifier(name) => string_params.push(name),
-                _ => {}
-            }
+        for name in params {
+            string_params.push(name)
         }
         Box::new(ProgramEntry::Definition(Definition::FunctionDefinition(ident, string_params, answer)))
     }
@@ -38,7 +38,7 @@ Expr: Box<Expression> = {
     Term,
     Identifier,
     "(" <a:Expr> <op:ExprOp> <b:Expr> ")" => Box::new(Expression::Operation(op, a, b)),
-    "[" <list:ListEntries> "]" => Box::new(Expression::List(list)),
+    "[" <list:ListEntries<Expr>> "]" => Box::new(Expression::List(list)),
     FunctionExpression,
     ConditionalExpression
 };
@@ -76,7 +76,7 @@ ConditionalTreeBranch: (Box<Expression>, Box<Expression>) = {
 
 // Expressions:
 FunctionExpression: Box<Expression> = {
-    <name:Identifier> "(" <params:ListEntries> ")" => {
+    <name:Identifier> "(" <params:ListEntries<Expr>> ")" => {
         // we must hope that lalrpop doesn't put something other than an 
         // identifier expression in a function call
         match *name {
@@ -91,33 +91,32 @@ ExprOp: Operator = {
     "-" => Operator::Subtract,
     "*" => Operator::Multiply,
     "/" => Operator::Divide,
-    "&&" => Operator::And,
-    "||" => Operator::Or,
-    "==" => Operator::Equals,
+    "and" => Operator::And,
+    "or" => Operator::Or,
+    "is" => Operator::Equals,
 };
 
 
-ListEntries: Vec<Box<Expression>> = {
-    <first:Expr> <rest:ListEntry*> => {
-            // It's possible that this may be quicker if this function were
-            // a vector containing only first then was appended the rest.
-            // This runs in O(N) time with n being how many elements are in rest
-            let mut new_rest = rest;
-            new_rest.insert(0, first);
-            new_rest
+
+
+
+
+ListEntries<T>: Vec<T> = {
+    <mut v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
         }
-}
+    }
+};
 
 IdentifierToken: String = {
-    r"[A-Za-z]+[A-Za-z0-9?_-]*" => <>.to_string()
+    r"[A-Za-z]+[A-Za-z0-9?_/.\\-]*" => <>.to_string()
 }
 
 Identifier: Box<Expression> = {
    <i:IdentifierToken> => Box::new(Expression::Identifier(i))
-}
-
-ListEntry: Box<Expression> = {
-    "," <e:Expr> => e
 }
 
 

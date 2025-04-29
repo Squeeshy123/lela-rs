@@ -1,6 +1,54 @@
 use std::collections::HashMap;
+use std::ops::Add;
 // Illegal Expressions can be created. Since this is a dynamically typed language,
 // types are only important once evaluation occurs.
+// I was tempted to make it impossible for the Expression data structure to represent an illegal
+// state, but alas, I must allow it because dynamically typed langs allow it as well. They just
+// handle the typing at runtime.
+
+#[derive(Debug)]
+pub enum LelaError {
+    EvaluationError(String),
+    SyntaxError(String),
+}
+
+#[derive(Debug)]
+// Each "line" of code in Lela is a program entry
+// Which is either a definition, or an expression
+pub enum ProgramEntry {
+    Expression(Box<Expression>),
+    Definition(Definition),
+}
+
+#[derive(Debug, Clone)]
+pub enum Definition {
+    // Constant Name, Value
+    ConstantDefinition(String, Box<Expression>),
+    // Function Name,  Parameters, Value
+    FunctionDefinition(String, Vec<String>, Box<Expression>),
+    // Struct name, Struct fields
+    StructDefinition(String, Vec<String>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+/// An Expression is a tree of operations as branches and values as leaves.
+pub enum Expression {
+    ValueExpr(Value),
+    Identifier(String),
+    List(Vec<Box<Expression>>),
+    Operation(Operator, Box<Expression>, Box<Expression>),
+    UnaryOperation(UnaryOperator, Box<Expression>),
+    ConditionalTree(Vec<Box<Expression>>, Vec<Box<Expression>>), // must be the same length
+    FunctionCall(String, Vec<Box<Expression>>),
+}
+
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum UnaryOperator {
+    Negate,
+    Not,
+    SquareRoot,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Operator {
@@ -13,21 +61,6 @@ pub enum Operator {
     Equals
 }
 
-#[derive(Debug, Clone)]
-pub enum Definition {
-    //              ConstantName Value
-    ConstantDefinition(String, Box<Expression>),
-    //               FuncName  Parameters   Value
-    FunctionDefinition(String, Vec<String>, Box<Expression>),
-}
-
-#[derive(Debug)]
-// Each "line" of code in Lela is a program entry
-// Which is either a definition, or an expression
-pub enum ProgramEntry {
-    Expression(Box<Expression>),
-    Definition(Definition),
-}
 
 #[derive(Clone)]
 // A Scope is a set of definitions that 'replace' identifiers,
@@ -41,12 +74,7 @@ pub enum Value {
     Number(String),
     String(String),
     Boolean(String),
-}
-
-#[derive(Debug)]
-pub enum LelaError {
-    EvaluationError(String),
-    SyntaxError(String),
+    Struct(String, Vec<Box<Expression>>)
 }
 
 fn parse_boolean(val: &String) -> Result<bool, LelaError> {
@@ -57,14 +85,30 @@ fn parse_boolean(val: &String) -> Result<bool, LelaError> {
     }
 }
 
+fn define_struct(struct_name: String, fields: Vec<String>, scope: &mut Scope) {
+    let make_struc_name = format!("make_{}", struct_name.clone());
+    let accessor = |field| format!("{}.{}", struct_name.clone(), field);
+
+/*
+    scope.definitions.insert(make_struc_name.clone(),
+                            Box::new(Definition::FunctionDefinition(make_struc_name, fields.clone(),
+                                                                    Box::new(Expression::ValueExpr(Value::Struct(struct_name, fields.clone()))))));
+
+
+    scope.definitions.insert(struct_name.clone(),
+                             Box::new(Definition::StructDefinition(struct_name, fields)));
+
+ */
+}
+
 // Defines a function that takes two Values of the same type.
 macro_rules! define_uniform_value_function {
     ($func_name:ident, $first_type:pat, $sec_type:pat, $to_do:block) => {
-        fn $func_name(val_a: &Value, val_b: &Value) -> Value {
+        fn $func_name(val_a: &Value, val_b: &Value) -> Result<Value, LelaError> {
             match (val_a, val_b) {
-                ($first_type, $sec_type) => $to_do,
+                ($first_type, $sec_type) => Ok($to_do),
                 // TODO: this error message sucks
-                (_, _) => panic!(""),
+                (_, _) => Err(LelaError::EvaluationError(format!("Cannot perform {} on {} and {} types", stringify!($to_do), stringify!($func_name), stringify!($first_type) ))),
             }
         }
     };
@@ -87,38 +131,23 @@ define_uniform_value_function!(divide_numbers, Value::Number(a), Value::Number(b
 });
 
 define_uniform_value_function!(and_booleans, Value::Boolean(a), Value::Boolean(b), {
-    Value::Boolean((parse_boolean(&a).unwrap() && parse_boolean(&b).unwrap()).to_string())
+    Value::Boolean("#".to_string().add(
+        (parse_boolean(&a).unwrap() && parse_boolean(&b).unwrap()).to_string().as_str()))
 });
 
 define_uniform_value_function!(or_booleans, Value::Boolean(a), Value::Boolean(b), {
-    Value::Boolean((parse_boolean(&a).unwrap() || parse_boolean(&b).unwrap()).to_string())
+    Value::Boolean("#".to_string().add(
+        (parse_boolean(&a).unwrap() || parse_boolean(&b).unwrap()).to_string().as_str()))
 });
 
 define_uniform_value_function!(equals_booleans, Value::Boolean(a), Value::Boolean(b), {
-    Value::Boolean((parse_boolean(&a).unwrap() == parse_boolean(&b).unwrap()).to_string())
+    Value::Boolean("#".to_string().add(
+        (parse_boolean(&a).unwrap() == parse_boolean(&b).unwrap()).to_string().as_str()))
 });
+
 define_uniform_value_function!(equals_number, Value::Number(a), Value::Number(b), {
     Value::Boolean(format!("#{}", (a.parse::<i32>().unwrap() == b.parse::<i32>().unwrap())).to_string())
 });
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum UnaryOperator {
-    Negate,
-    Not,
-    SquareRoot,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-/// An Expression is a tree of operations as branches and values as leaves.
-pub enum Expression {
-    ValueExpr(Value),
-    Identifier(String),
-    List(Vec<Box<Expression>>),
-    Operation(Operator, Box<Expression>, Box<Expression>),
-    UnaryOperation(UnaryOperator, Box<Expression>),
-    ConditionalTree(Vec<Box<Expression>>, Vec<Box<Expression>>), // must be the same length
-    FunctionCall(String, Vec<Box<Expression>>),
-}
 
 // Given a Vec of results between program entries and errors,
 // evaluate each element that is an expression
@@ -145,6 +174,8 @@ pub fn evaluate_program(
                             .definitions
                             .insert(name.clone(), Box::new(definition.to_owned()));
                     }
+                    Definition::StructDefinition(name, fields) =>
+                        define_struct(name.clone(), fields.clone(), scope),
                 },
             }
             Err(e) => answers.push(Err(e))
@@ -164,37 +195,37 @@ fn evaluate_operation_expression(
         Operator::Add => Ok(add_numbers(
             &evaluate_expression(left, scope)?,
             &evaluate_expression(right, scope)?,
-        )),
+        )?),
         Operator::Multiply => Ok(multiply_numbers(
             &evaluate_expression(left, scope)?,
             &evaluate_expression(right, scope)?,
-        )),
+        )?),
         Operator::Divide => Ok(divide_numbers(
             &evaluate_expression(left, scope)?,
             &evaluate_expression(right, scope)?,
-        )),
+        )?),
         Operator::Subtract => Ok(subtract_numbers(
             &evaluate_expression(left, scope)?,
             &evaluate_expression(right, scope)?,
-        )),
+        )?),
         Operator::And => {
             Ok(and_booleans(
                 &evaluate_expression(left, scope)?,
                 &evaluate_expression(right, scope)?,
-            ))
+            )?)
         }
         Operator::Or => {
             Ok(or_booleans(
                 &evaluate_expression(left, scope)?,
                 &evaluate_expression(right, scope)?,
-            ))
+            )?)
         }
         Operator::Equals => {
             let left = evaluate_expression(left, scope)?;
             let right = evaluate_expression(right, scope)?;
             match (&left, &right) {
-                (Value::Number(_), Value::Number(_)) => Ok(equals_number(&left, &right)),
-                (Value::Boolean(_), Value::Boolean(_)) => Ok(equals_booleans(&left, &right)),
+                (Value::Number(_), Value::Number(_)) => Ok(equals_number(&left, &right)?),
+                (Value::Boolean(_), Value::Boolean(_)) => Ok(equals_booleans(&left, &right)?),
                 (_, _) => Err(LelaError::EvaluationError("Cannot perform equals on these two types".to_string()))
             }
 
@@ -214,6 +245,9 @@ fn evaluate_identifier_expression(
             Definition::FunctionDefinition(_, _, _) => {
                 unreachable!("This identifer is somehow evaluating to a function")
             }
+            Definition::StructDefinition(_, _) => {
+                unreachable!("This identifer is somehow evaluating to a struct")
+            }
         },
         None => panic!("Identifier {} not in scope!", identifier_name.as_str()),
     }
@@ -227,10 +261,11 @@ fn evaluate_function_call(
     let function = scope.definitions.get(identifier);
     match function {
         Some(definition) => evaluate_function_call_with_definition(definition, parameters, scope),
-        None => panic!("Function of the name `{}` not found", identifier),
+        None => Err(LelaError::EvaluationError(format!("Function {} not found", identifier))),
     }
 }
 
+// Given a function definition, evaluate the function with the given parameters
 fn evaluate_function_call_with_definition(
     function_def: &Definition,
     given_parameters: &Vec<Box<Expression>>,
@@ -260,6 +295,9 @@ fn evaluate_function_call_with_definition(
                 );
             }
             evaluate_expression(expr, &function_scope)
+        }
+        Definition::StructDefinition(name, _) => {
+            panic!("{} is not a function", name)
         }
     }
 }
