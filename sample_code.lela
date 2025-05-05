@@ -2,11 +2,15 @@ let fifteen = 15;
 
 struct Pair [left, right];
 
-make_Pair(15,5);
+let p = make_pair(10000000,5);
+
+pair.left(p);
 
 func add(a, b) {
     (a + b)
 };
+
+(15 > 4);
 
 func factorial(n) {
     switch {

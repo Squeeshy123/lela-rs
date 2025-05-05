@@ -6,7 +6,7 @@ use std::fmt;
 use std::sync::Arc;
 
 #[derive(Clone)]
-pub struct FunctionObject(Arc<dyn Fn(&Scope) -> Result<Box<Expression>, LelaError> + Send + Sync>);
+pub struct FunctionObject(Arc<dyn Fn(&Scope) -> Result<Box<Expression>, LelaError>>);
 
 impl fmt::Debug for FunctionObject {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -17,7 +17,7 @@ impl fmt::Debug for FunctionObject {
 impl FunctionObject {
     pub fn new<F>(func: F) -> Self
     where
-        F: Fn(&Scope) -> Result<Box<Expression>, LelaError> + Send + Sync + 'static,
+        F: Fn(&Scope) -> Result<Box<Expression>, LelaError> + 'static,
     {
         FunctionObject(Arc::new(func))
     }
@@ -83,6 +83,10 @@ pub enum Operator {
     Subtract,
     Multiply,
     Divide,
+    GreaterThan,
+    LessThan,
+    GreaterEqTo,
+    LessEqTo,
     And,
     Or,
     Equals,
@@ -130,8 +134,8 @@ fn parse_boolean(val: &String) -> Result<bool, LelaError> {
 
 // Given the name and field-names of a struct, define it in the given scope.
 pub fn define_struct(struct_name: String, fields: Vec<String>, scope: &mut Scope) {
-    let make_struc_name = format!("make_{}", struct_name.clone());
-    let accessor = |field: &str| format!("{}.{}", struct_name.clone(), field);
+    let make_struc_name = format!("make_{}", struct_name.clone().to_ascii_lowercase());
+    let accessor = |field: &str| format!("{}.{}", struct_name.clone().to_ascii_lowercase(), field);
 
     // Struct Maker
 
@@ -147,9 +151,11 @@ pub fn define_struct(struct_name: String, fields: Vec<String>, scope: &mut Scope
                     fun_scope,
                 ) {
                     Ok(Value::Struct(name, vals)) => {
-                        println!("Hey!!! {:?}", &vals[i]);
-                        let eval = evaluate_expression(&vals[i]?, &fun_scope)?;
-                        
+                        let eval = evaluate_expression(
+                            &<Result<Box<Expression>, LelaError> as Clone>::clone(&vals[i])?,
+                            &fun_scope,
+                        )?;
+
                         Ok(Box::new(Expression::ValueExpr(eval)))
                     }
                     _ => panic!("this should really be in a result format..."),
@@ -188,7 +194,12 @@ pub fn define_struct(struct_name: String, fields: Vec<String>, scope: &mut Scope
                     fields
                         .clone()
                         .iter()
-                        .map(|name| Box::new(Expression::Identifier(name.clone())))
+                        .map(|name| {
+                            Ok(Box::new(Expression::ValueExpr(evaluate_expression(
+                                &Box::new(Expression::Identifier(name.clone())),
+                                fun_scope,
+                            )?)))
+                        })
                         .collect(),
                 ))))
             }),
@@ -229,6 +240,56 @@ define_uniform_value_function!(multiply_numbers, Value::Number(a), Value::Number
 define_uniform_value_function!(divide_numbers, Value::Number(a), Value::Number(b), {
     Value::Number((a.parse::<i32>().unwrap() * b.parse::<i32>().unwrap()).to_string())
 });
+
+define_uniform_value_function!(less_than_number, Value::Number(a), Value::Number(b), {
+    Value::Boolean(
+        "#".to_string().add(
+            (a.parse::<i32>().unwrap() < b.parse::<i32>().unwrap())
+                .to_string()
+                .as_str(),
+        ),
+    )
+});
+
+define_uniform_value_function!(greater_than_number, Value::Number(a), Value::Number(b), {
+    Value::Boolean(
+        "#".to_string().add(
+            (a.parse::<i32>().unwrap() > b.parse::<i32>().unwrap())
+                .to_string()
+                .as_str(),
+        ),
+    )
+});
+
+define_uniform_value_function!(
+    less_than_equal_number,
+    Value::Number(a),
+    Value::Number(b),
+    {
+        Value::Boolean(
+            "#".to_string().add(
+                (a.parse::<i32>().unwrap() <= b.parse::<i32>().unwrap())
+                    .to_string()
+                    .as_str(),
+            ),
+        )
+    }
+);
+
+define_uniform_value_function!(
+    greater_than_equal_number,
+    Value::Number(a),
+    Value::Number(b),
+    {
+        Value::Boolean(
+            "#".to_string().add(
+                (a.parse::<i32>().unwrap() >= b.parse::<i32>().unwrap())
+                    .to_string()
+                    .as_str(),
+            ),
+        )
+    }
+);
 
 define_uniform_value_function!(and_booleans, Value::Boolean(a), Value::Boolean(b), {
     Value::Boolean(
@@ -326,6 +387,8 @@ pub fn evaluate_program(
     answers
 }
 
+/// Lots of repeated code in this function: Maybe a macro could fix it??? `register_operation` function?
+
 // Evaluates an operation expression, given the operator, the left expression, the right expression, and a scope.
 fn evaluate_operation_expression(
     operator: &Operator,
@@ -369,6 +432,22 @@ fn evaluate_operation_expression(
                 )),
             }
         }
+        Operator::GreaterThan => Ok(greater_than_number(
+            &evaluate_expression(left, scope)?,
+            &evaluate_expression(right, scope)?,
+        )?),
+        Operator::LessThan => Ok(less_than_number(
+            &evaluate_expression(left, scope)?,
+            &evaluate_expression(right, scope)?,
+        )?),
+        Operator::GreaterEqTo => Ok(greater_than_equal_number(
+            &evaluate_expression(left, scope)?,
+            &evaluate_expression(right, scope)?,
+        )?),
+        Operator::LessEqTo => Ok(less_than_equal_number(
+            &evaluate_expression(left, scope)?,
+            &evaluate_expression(right, scope)?,
+        )?),
     }
 }
 
