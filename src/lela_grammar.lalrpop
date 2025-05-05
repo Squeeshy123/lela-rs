@@ -1,4 +1,5 @@
-use crate::lela::{ProgramEntry, Definition, Expression, Operator, Value};
+use crate::lela::{ProgramEntry, Definition, Expression, Operator, Value, FunctionObject};
+use crate::lela;
 
 grammar;
 
@@ -30,7 +31,7 @@ FunctionDefinition: Box<ProgramEntry> = {
         for name in params {
             string_params.push(name)
         }
-        Box::new(ProgramEntry::Definition(Definition::FunctionDefinition(ident, string_params, answer)))
+        Box::new(ProgramEntry::Definition(Definition::FunctionDefinition(ident, string_params, FunctionObject::new(move |_| Ok(answer.clone())))))
     }
 }
 
@@ -38,7 +39,7 @@ Expr: Box<Expression> = {
     Term,
     Identifier,
     "(" <a:Expr> <op:ExprOp> <b:Expr> ")" => Box::new(Expression::Operation(op, a, b)),
-    "[" <list:ListEntries<Expr>> "]" => Box::new(Expression::List(list)),
+    "[" <list:ListEntries<Expr>> "]" => Box::new(lela::vec_to_pair_list(&list)),
     FunctionExpression,
     ConditionalExpression
 };
@@ -112,7 +113,7 @@ ListEntries<T>: Vec<T> = {
 };
 
 IdentifierToken: String = {
-    r"[A-Za-z]+[A-Za-z0-9?_/.\\-]*" => <>.to_string()
+    r"[A-Za-z]+[A-Za-z0-9?_\/.\\-]*" => <>.to_string()
 }
 
 Identifier: Box<Expression> = {

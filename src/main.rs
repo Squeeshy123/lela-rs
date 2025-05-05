@@ -1,28 +1,27 @@
+use crate::lela::{Expression, LelaError, Operator, evaluate_expression, evaluate_program};
 use crate::lela_grammar::DefinitionOrExpressionParser;
-use lalrpop_util::{lalrpop_mod};
-use lela::ProgramEntry;
-use lela::Value;
+use lalrpop_util::lalrpop_mod;
+use lela::{FunctionObject, ProgramEntry, Value};
 use std::collections::HashMap;
 use std::env;
 use std::fs;
-use crate::lela::{evaluate_expression, evaluate_program, Expression, LelaError, Operator};
 
 pub mod lela;
 
 lalrpop_mod!(pub lela_grammar); // synthesized by LALRPOP
 
-/// Reads the contents of a file, given its relative path.
+// Reads the contents of a file, given its relative path.
 fn read_from_file(file_path: &String) -> String {
     // TODO: change to a match expression:
     fs::read_to_string(file_path).expect("Should have been able to read the file")
 }
 
-/// Splits a given string on how a program should be split.
+// Splits a given string on how a program should be split.
 fn split_as_program(src: &String) -> Vec<String> {
     src.split(";").map(|s| s.to_string()).collect()
 }
 
-/// Given a file path, read it as a program
+// Given a file path, read it as a program
 fn read_program_from_file(file_path: &String) -> Vec<String> {
     let source = read_from_file(file_path);
     let split_file_input = split_as_program(&source);
@@ -30,7 +29,7 @@ fn read_program_from_file(file_path: &String) -> Vec<String> {
     contents
 }
 
-/// Produces parsed ASTs given a vector of strings
+// Produces parsed ASTs given a vector of strings
 fn parse_program_strings(
     source: &Vec<String>,
 ) -> Vec<
@@ -47,7 +46,7 @@ fn parse_program_strings(
     output
 }
 
-/// Creates an empty scope.
+// Creates an empty scope.
 fn create_empty_scope() -> lela::Scope {
     let global_scope = lela::Scope {
         definitions: HashMap::new(),
@@ -55,14 +54,44 @@ fn create_empty_scope() -> lela::Scope {
     global_scope
 }
 
+fn create_default_scope() -> lela::Scope {
+    let mut scope = create_empty_scope();
+
+    lela::define_function(
+        &mut scope,
+        "first",
+        vec!["list".to_owned()],
+        FunctionObject::new(|_| {
+            Ok(Box::new(Expression::UnaryOperation(
+                lela::UnaryOperator::First,
+                Box::new(Expression::Identifier("list".to_string())),
+            )))
+        }),
+    );
+    lela::define_function(
+        &mut scope,
+        "rest",
+        vec!["list".to_owned()],
+        FunctionObject::new(|_| {
+            Ok(Box::new(Expression::UnaryOperation(
+                lela::UnaryOperator::Rest,
+                Box::new(Expression::Identifier("list".to_string())),
+            )))
+        }),
+    );
+    scope
+}
+
 /// Given a Vector of Strings, evaluate each as a lela program.
 fn run_program(program: &Vec<String>) {
-    let mut global_scope = create_empty_scope();
-    let cleaned_program = parse_program_strings(program).into_iter().map(|entry|
-        match entry {
+    let mut global_scope = create_default_scope();
+    let cleaned_program = parse_program_strings(program)
+        .into_iter()
+        .map(|entry| match entry {
             Ok(r) => Ok(r),
-            Err(e) => Err(LelaError::SyntaxError(e.to_string()))
-        }).collect();
+            Err(e) => Err(LelaError::SyntaxError(e.to_string())),
+        })
+        .collect();
     // Create answers from our list of expressions
     let answers = lela::evaluate_program(cleaned_program, &mut global_scope);
     // Prints the evaluations
@@ -70,7 +99,6 @@ fn run_program(program: &Vec<String>) {
         println!("{:?}", ans)
     }
 }
-
 
 #[test]
 fn test_valid_parsings() {
@@ -94,10 +122,14 @@ fn test_valid_parsings() {
 
 #[test]
 fn test_proper_conditional_parsing() {
-    let cases = vec![Box::new(Expression::ValueExpr(Value::Boolean("#true".to_string()))),
-                     Box::new(Expression::ValueExpr(Value::Boolean("#true".to_string())))];
-    let values = vec![Box::new(Expression::ValueExpr(Value::Number(15.to_string()))),
-                      Box::new(Expression::ValueExpr(Value::Number(0.to_string())))];
+    let cases = vec![
+        Box::new(Expression::ValueExpr(Value::Boolean("#true".to_string()))),
+        Box::new(Expression::ValueExpr(Value::Boolean("#true".to_string()))),
+    ];
+    let values = vec![
+        Box::new(Expression::ValueExpr(Value::Number(15.to_string()))),
+        Box::new(Expression::ValueExpr(Value::Number(0.to_string()))),
+    ];
     let five = Box::new(Expression::ConditionalTree(cases, values));
 
     let cond1 = "if #true { 15 } else { 0 }";
@@ -124,22 +156,41 @@ fn test_valid_evaluations() {
     // let true_val = Expression::ValueExpr(Value::String("true".to_string()));
     // let false_val = Expression::ValueExpr(Value::Boolean("false".to_string()));
 
-    let thirty_added = Expression::Operation(Operator::Add,
-                                             Box::new(fifteen.clone()),
-                                             Box::new(fifteen.clone()));
-    let three_added = Expression::Operation(Operator::Add,
-                                            Box::new(one_and_a_half.clone()),
-                                            Box::new(also_one_and_a_half.clone()));
+    let thirty_added = Expression::Operation(
+        Operator::Add,
+        Box::new(fifteen.clone()),
+        Box::new(fifteen.clone()),
+    );
+    let three_added = Expression::Operation(
+        Operator::Add,
+        Box::new(one_and_a_half.clone()),
+        Box::new(also_one_and_a_half.clone()),
+    );
     let test_scope = create_empty_scope();
 
-
-    assert_eq!(lela::evaluate_expression(&Box::new(thirty_added), &test_scope).unwrap(), Value::Number(30.to_string()));
-    assert_eq!(lela::evaluate_expression(&Box::new(three_added), &test_scope).unwrap(), Value::Number(3.to_string()));
-    assert_eq!(lela::evaluate_expression(&Box::new(also_one_and_a_half), &test_scope).unwrap(), Value::Number(1.5.to_string()));
-
+    assert_eq!(
+        lela::evaluate_expression(&Box::new(thirty_added), &test_scope).unwrap(),
+        Value::Number(30.to_string())
+    );
+    assert_eq!(
+        lela::evaluate_expression(&Box::new(three_added), &test_scope).unwrap(),
+        Value::Number(3.to_string())
+    );
+    assert_eq!(
+        lela::evaluate_expression(&Box::new(also_one_and_a_half), &test_scope).unwrap(),
+        Value::Number(1.5.to_string())
+    );
 }
 
+#[test]
+fn test_proper_struct_definition() {
+    // Test that our three (types of) functions get created
+    let program_str = "struct book [isbn, author_id, release_date]; \n let htdp = make_book(100, 256, 02102001) \n (book.isbn(htdp) - 1)";
+    let splits = split_as_program(&program_str.to_string());
+    let program = clean_program(parse_program_strings(&splits));
 
+    lela::evaluate_program(program, &mut create_empty_scope());
+}
 
 #[test]
 fn test_parsing_conditional_expressions() {
@@ -148,17 +199,17 @@ fn test_parsing_conditional_expressions() {
     match parser.parse(cond1).unwrap().as_ref() {
         ProgramEntry::Expression(expr) => match evaluate_expression(expr, &create_empty_scope()) {
             Ok(val) => assert_eq!(val, Value::Number(15.to_string())),
-            Err(e) => panic!("{:?}", e)
+            Err(e) => panic!("{:?}", e),
         },
-        ProgramEntry::Definition(def) => panic!("The following is being parsed as a definition: {:?}", def),
+        ProgramEntry::Definition(def) => {
+            panic!("The following is being parsed as a definition: {:?}", def)
+        }
     }
-
 }
 
 #[test]
 fn test_recursive_program() {
-    let recursive_prog_string =
-        "func factorial(n) {
+    let recursive_prog_string = "func factorial(n) {
             switch {
                 case (n == 1): (1),
                     case #true: factorial((n - 1)),
@@ -170,7 +221,6 @@ fn test_recursive_program() {
     let program = parse_program_strings(&binding);
     let cleaned = clean_program(program);
     evaluate_program(cleaned, &mut scope);
-
 }
 
 #[test]
@@ -213,7 +263,10 @@ fn test_identifier_evaluation() {
         Box::new(lela::Expression::Identifier("fifteen".to_string())),
     ));
 
-    assert_eq!(lela::evaluate_expression(&test_expression, &scope).unwrap(), Value::Number(20.to_string()));
+    assert_eq!(
+        lela::evaluate_expression(&test_expression, &scope).unwrap(),
+        Value::Number(20.to_string())
+    );
 }
 
 #[test]
@@ -225,12 +278,21 @@ fn test_sample_program() {
     run_program(&program_read);
 }
 
-fn clean_program(parsed: Vec<Result<Box<ProgramEntry>, lalrpop_util::ParseError<usize, lalrpop_util::lexer::Token<'_>, &str>>>) -> Vec<Result<Box<ProgramEntry>, LelaError>> {
-    parsed.into_iter().map(|entry|
-        match entry {
+fn clean_program(
+    parsed: Vec<
+        Result<
+            Box<ProgramEntry>,
+            lalrpop_util::ParseError<usize, lalrpop_util::lexer::Token<'_>, &str>,
+        >,
+    >,
+) -> Vec<Result<Box<ProgramEntry>, LelaError>> {
+    parsed
+        .into_iter()
+        .map(|entry| match entry {
             Ok(r) => Ok(r),
-            Err(e) => Err(LelaError::SyntaxError(e.to_string()))
-        }).collect()
+            Err(e) => Err(LelaError::SyntaxError(e.to_string())),
+        })
+        .collect()
 }
 
 fn main() {
@@ -245,7 +307,7 @@ fn main() {
         definitions: HashMap::new(),
     };
 
-    let cleaned_program:Vec<Result<Box<ProgramEntry>, LelaError>> = clean_program(parsed);
+    let cleaned_program: Vec<Result<Box<ProgramEntry>, LelaError>> = clean_program(parsed);
 
     // Create answers from our expressions
     let answers = lela::evaluate_program(cleaned_program, &mut global_scope);
