@@ -24,7 +24,8 @@ fn split_as_program(src: &String) -> Vec<String> {
 // Given a file path, read it as a program
 fn read_program_from_file(file_path: &String) -> Vec<String> {
     let source = read_from_file(file_path);
-    let split_file_input = split_as_program(&source);
+    let gutted_source = source.replace("\n", "");
+    let split_file_input = split_as_program(&gutted_source);
     let contents: Vec<String> = split_file_input;
     contents
 }
@@ -299,11 +300,11 @@ fn clean_program(
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let mut file_path: String = args[1].clone();
-    if file_path.is_empty() {
-        file_path = "sample_code.lela".to_owned();
+    let mut file_path: Option<String> = args.get(1).cloned();
+    if file_path.is_none() {
+        file_path = Some("sample_code.lela".to_string());
     }
-    let read = read_program_from_file(&file_path);
+    let read = read_program_from_file(&file_path.unwrap());
 
     run_program(&read);
 }

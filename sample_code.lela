@@ -1,6 +1,11 @@
 let fifteen = 15;
 
+// This is a test comment :P;
+
 struct Pair [left, right];
+
+let string_test = "hello!";
+string_test;
 
 let p = make_pair(10000000,5);
 

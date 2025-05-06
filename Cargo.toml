@@ -8,6 +8,7 @@ lalrpop = "0.22.1"
 
 [dependencies]
 lalrpop-util = { version = "0.22.1", features = ["lexer", "unicode"] }
+unescape = "0.1.0"
 
 [profile.release]
 debug = true

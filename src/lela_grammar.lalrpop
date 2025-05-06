@@ -1,5 +1,6 @@
 use crate::lela::{ProgramEntry, Definition, Expression, Operator, Value, FunctionObject};
 use crate::lela;
+use unescape::unescape;
 
 grammar;
 
@@ -124,14 +125,16 @@ Identifier: Box<Expression> = {
    <i:IdentifierToken> => Box::new(Expression::Identifier(i))
 }
 
-
+StringLiteral: String = {
+    <raw:r#""(\\.|[^"\\])*""#>  => unescape(&raw[1 .. raw.len() - 1]).unwrap()
+}
 
 Term: Box<Expression> = {
     Num => Box::new(Expression::ValueExpr(Value::Number(<>))),
 
     r"#true" => Box::new(Expression::ValueExpr(Value::Boolean(<>.to_string()))),
     r"#false" => Box::new(Expression::ValueExpr(Value::Boolean(<>.to_string()))),
-    "\"[.]\"" => Box::new(Expression::ValueExpr(Value::String(<>.to_string()))),
+    StringLiteral => Box::new(Expression::ValueExpr(Value::String(<>.to_string()))),
     "(" <Expr> ")"
 };
 
