@@ -92,6 +92,10 @@ ExprOp: Operator = {
     "-" => Operator::Subtract,
     "*" => Operator::Multiply,
     "/" => Operator::Divide,
+    ">" => Operator::GreaterThan,
+    "<" => Operator::LessThan,
+    ">=" => Operator::GreaterEqTo,
+    "<=" => Operator::LessEqTo,
     "and" => Operator::And,
     "or" => Operator::Or,
     "is" => Operator::Equals,
@@ -127,6 +131,7 @@ Term: Box<Expression> = {
 
     r"#true" => Box::new(Expression::ValueExpr(Value::Boolean(<>.to_string()))),
     r"#false" => Box::new(Expression::ValueExpr(Value::Boolean(<>.to_string()))),
+    "\"[.]\"" => Box::new(Expression::ValueExpr(Value::String(<>.to_string()))),
     "(" <Expr> ")"
 };
 

@@ -1,0 +1,22 @@
+struct no_parent [];
+struct child [father, mother, name, date, eyes];
+
+// Hello!
+// A FamilyTree (FT) is one of
+//  - make_no_parent()
+//  - make_child(FT, FT, String, Natural, String)
+
+let NP = make_no_parent();
+
+// Oldest Generation:
+let Carl = make_child(NP, NP, "Carl", 1926, "green");
+let Bettina = make_child(NP, NP, "Bettina", 1926, "green");
+ 
+// Middle Generation:
+let Adam = make_child(Carl, Bettina, "Adam", 1950, "hazel");
+let Dave = make_child(Carl, Bettina, "Dave", 1955, "black");
+let Eva = make_child(Carl, Bettina, "Eva", 1965, "blue")
+let Fred = make_child(NP, NP, "Fred", 1966, "pink")
+ 
+// Youngest Generation: 
+let Gustav = make_child(Fred, Eva, "Gustav", 1988, "brown");

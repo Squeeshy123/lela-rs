@@ -85,7 +85,9 @@ fn create_default_scope() -> lela::Scope {
 /// Given a Vector of Strings, evaluate each as a lela program.
 fn run_program(program: &Vec<String>) {
     let mut global_scope = create_default_scope();
-    let cleaned_program = parse_program_strings(program)
+    let decommented: Vec<String> = program.iter().map(|s| s.to_owned()).filter(|s| !s.starts_with("//")).collect();
+    println!("{:?}", decommented);
+    let cleaned_program = parse_program_strings(&decommented)
         .into_iter()
         .map(|entry| match entry {
             Ok(r) => Ok(r),
@@ -297,22 +299,11 @@ fn clean_program(
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let file_path = &args[1];
-    let read = read_program_from_file(file_path);
-    println!("{:?}", read);
-    let parsed = parse_program_strings(&read);
-    println!("{:?}", parsed);
-
-    let mut global_scope = lela::Scope {
-        definitions: HashMap::new(),
-    };
-
-    let cleaned_program: Vec<Result<Box<ProgramEntry>, LelaError>> = clean_program(parsed);
-
-    // Create answers from our expressions
-    let answers = lela::evaluate_program(cleaned_program, &mut global_scope);
-    // Prints the evaluations
-    for ans in answers {
-        println!("{:?}", ans)
+    let mut file_path: String = args[1].clone();
+    if file_path.is_empty() {
+        file_path = "sample_code.lela".to_owned();
     }
+    let read = read_program_from_file(&file_path);
+
+    run_program(&read);
 }

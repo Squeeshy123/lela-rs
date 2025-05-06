@@ -92,9 +92,9 @@ pub enum Operator {
     Equals,
 }
 
-#[derive(Clone)]
 // A Scope is a set of definitions that 'replace' identifiers,
 // if they correlate
+#[derive(Clone)]
 pub struct Scope {
     pub definitions: HashMap<String, Box<Definition>>,
 }
@@ -342,6 +342,7 @@ pub fn define_function(
     add_to_scope(scope, name.to_owned(), def)
 }
 
+// add a single definition to a given scope
 pub fn add_to_scope(
     scope: &mut Scope,
     name: String,
@@ -350,6 +351,8 @@ pub fn add_to_scope(
     scope.definitions.insert(name, Box::new(definition))
 }
 
+
+// Given a definition, add it to the given scope 
 fn create_program_definition(definition: &Definition, scope: &mut Scope) {
     match definition {
         Definition::ConstantDefinition(name, _) => {
