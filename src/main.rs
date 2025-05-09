@@ -1,4 +1,4 @@
-use crate::lela::{LelaError};
+use crate::lela::LelaError;
 use lalrpop_util::lalrpop_mod;
 use lela::create_default_scope;
 use lela::{ProgramEntry, evaluate_program};
