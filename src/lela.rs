@@ -39,12 +39,14 @@ pub enum LelaError {
     SyntaxError(String),
 }
 
-#[derive(Debug)]
 // Each "line" of code in Lela is a program entry
 // Which is either a definition, or an expression
+#[derive(Debug)]
 pub enum ProgramEntry {
     Expression(Box<Expression>),
     Definition(Definition),
+    Comment,
+    ParseError(String),
 }
 
 #[derive(Debug, Clone)]
@@ -57,8 +59,8 @@ pub enum Definition {
     StructDefinition(String, Vec<String>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
 /// An Expression is a tree of operations as branches and values as leaves.
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     ValueExpr(Value),
     Identifier(String),
@@ -136,6 +138,7 @@ fn parse_boolean(val: &String) -> Result<bool, LelaError> {
 pub fn define_struct(struct_name: String, fields: Vec<String>, scope: &mut Scope) {
     let make_struc_name = format!("make_{}", struct_name.clone().to_ascii_lowercase());
     let accessor = |field: &str| format!("{}.{}", struct_name.clone().to_ascii_lowercase(), field);
+    let predicate = format!("{}?", struct_name.clone().to_ascii_lowercase());
 
     // Struct Maker
 
@@ -146,15 +149,13 @@ pub fn define_struct(struct_name: String, fields: Vec<String>, scope: &mut Scope
             accessor(&field_name).as_str(),
             vec!["this".to_string()],
             FunctionObject::new(move |fun_scope| {
-                match evaluate_expression(
-                    &Box::new(Expression::Identifier("this".to_string())),
-                    fun_scope,
-                ) {
-                    Ok(Value::Struct(name, vals)) => {
-                        let eval = evaluate_expression(
-                            &<Result<Box<Expression>, LelaError> as Clone>::clone(&vals[i])?,
-                            &fun_scope,
-                        )?;
+                match (&Box::new(Expression::Identifier("this".to_string())))
+                    .evaluate_expression(fun_scope)
+                {
+                    Ok(Value::Struct(_name, vals)) => {
+                        let eval =
+                            (&<Result<Box<Expression>, LelaError> as Clone>::clone(&vals[i])?)
+                                .evaluate_expression(&fun_scope)?;
 
                         Ok(Box::new(Expression::ValueExpr(eval)))
                     }
@@ -173,6 +174,22 @@ pub fn define_struct(struct_name: String, fields: Vec<String>, scope: &mut Scope
     // but when including type checking in the `is` syntax we can say
     // `if (x is integer)` you could also say `if (integer is x)`, which is semantically separate
     // scope.definitions.insert(format!("is_{}?", struct_name.clone()), );
+    let dup_name = struct_name.clone();
+    scope.definitions.insert(
+        predicate.clone(),
+        Box::new(Definition::FunctionDefinition(
+            predicate,
+            vec!["this".to_string()],
+            FunctionObject::new(move |fun_scope: &Scope| {
+                match evaluate_identifier_expression(&"this".to_string(), fun_scope)? {
+                    Value::Struct(name, _) => Ok(Box::new(Expression::ValueExpr(Value::Boolean(
+                        "#".to_string() + &(dup_name == name).to_string(),
+                    )))),
+                    _ => Err(LelaError::EvaluationError("Expected a Struct!".to_string())),
+                }
+            }),
+        )),
+    );
 
     // Struct Definition
     scope.definitions.insert(
@@ -195,10 +212,10 @@ pub fn define_struct(struct_name: String, fields: Vec<String>, scope: &mut Scope
                         .clone()
                         .iter()
                         .map(|name| {
-                            Ok(Box::new(Expression::ValueExpr(evaluate_expression(
-                                &Box::new(Expression::Identifier(name.clone())),
-                                fun_scope,
-                            )?)))
+                            Ok(Box::new(Expression::ValueExpr(
+                                (&Box::new(Expression::Identifier(name.clone())))
+                                    .evaluate_expression(fun_scope)?,
+                            )))
                         })
                         .collect(),
                 ))))
@@ -351,8 +368,7 @@ pub fn add_to_scope(
     scope.definitions.insert(name, Box::new(definition))
 }
 
-
-// Given a definition, add it to the given scope 
+// Given a definition, add it to the given scope
 fn create_program_definition(definition: &Definition, scope: &mut Scope) {
     match definition {
         Definition::ConstantDefinition(name, _) => {
@@ -367,6 +383,42 @@ fn create_program_definition(definition: &Definition, scope: &mut Scope) {
     }
 }
 
+// CREATES an empty scope.
+pub fn create_empty_scope() -> Scope {
+    let global_scope = Scope {
+        definitions: HashMap::new(),
+    };
+    global_scope
+}
+
+pub fn create_default_scope() -> Scope {
+    let mut scope = create_empty_scope();
+
+    define_function(
+        &mut scope,
+        "first",
+        vec!["list".to_owned()],
+        FunctionObject::new(|_| {
+            Ok(Box::new(Expression::UnaryOperation(
+                UnaryOperator::First,
+                Box::new(Expression::Identifier("list".to_string())),
+            )))
+        }),
+    );
+    define_function(
+        &mut scope,
+        "rest",
+        vec!["list".to_owned()],
+        FunctionObject::new(|_| {
+            Ok(Box::new(Expression::UnaryOperation(
+                UnaryOperator::Rest,
+                Box::new(Expression::Identifier("list".to_string())),
+            )))
+        }),
+    );
+    scope
+}
+
 // Given a Vec of results between program entries and errors,
 // evaluate each element that is an expression
 pub fn evaluate_program(
@@ -378,11 +430,12 @@ pub fn evaluate_program(
         match potential_entry {
             Ok(entry) => match entry.as_ref() {
                 ProgramEntry::Expression(expression) => {
-                    answers.push(evaluate_expression(&expression, scope))
+                    answers.push((&expression).evaluate_expression(scope))
                 }
                 ProgramEntry::Definition(definition) => {
                     create_program_definition(definition, scope)
                 }
+                _ => {}
             },
             Err(e) => answers.push(Err(e)),
         }
@@ -401,55 +454,55 @@ fn evaluate_operation_expression(
 ) -> Result<Value, LelaError> {
     match operator {
         Operator::Add => Ok(add_numbers(
-            &evaluate_expression(left, scope)?,
-            &evaluate_expression(right, scope)?,
+            &left.evaluate_expression(scope)?,
+            &right.evaluate_expression(scope)?,
         )?),
         Operator::Multiply => Ok(multiply_numbers(
-            &evaluate_expression(left, scope)?,
-            &evaluate_expression(right, scope)?,
+            &left.evaluate_expression(scope)?,
+            &right.evaluate_expression(scope)?,
         )?),
         Operator::Divide => Ok(divide_numbers(
-            &evaluate_expression(left, scope)?,
-            &evaluate_expression(right, scope)?,
+            &left.evaluate_expression(scope)?,
+            &right.evaluate_expression(scope)?,
         )?),
         Operator::Subtract => Ok(subtract_numbers(
-            &evaluate_expression(left, scope)?,
-            &evaluate_expression(right, scope)?,
+            &left.evaluate_expression(scope)?,
+            &right.evaluate_expression(scope)?,
         )?),
         Operator::And => Ok(and_booleans(
-            &evaluate_expression(left, scope)?,
-            &evaluate_expression(right, scope)?,
+            &left.evaluate_expression(scope)?,
+            &right.evaluate_expression(scope)?,
         )?),
         Operator::Or => Ok(or_booleans(
-            &evaluate_expression(left, scope)?,
-            &evaluate_expression(right, scope)?,
+            &left.evaluate_expression(scope)?,
+            &right.evaluate_expression(scope)?,
         )?),
         Operator::Equals => {
-            let left = evaluate_expression(left, scope)?;
-            let right = evaluate_expression(right, scope)?;
+            let left = left.evaluate_expression(scope)?;
+            let right = right.evaluate_expression(scope)?;
             match (&left, &right) {
                 (Value::Number(_), Value::Number(_)) => Ok(equals_number(&left, &right)?),
                 (Value::Boolean(_), Value::Boolean(_)) => Ok(equals_booleans(&left, &right)?),
-                (_, _) => Err(LelaError::EvaluationError(
-                    "Cannot perform equals on these two types".to_string(),
-                )),
+                (Value::List(_), Value::List(_)) => todo!(),
+                (Value::Empty, Value::Empty) => Ok(Value::Boolean("#true".to_string())),
+                (_, _) => Ok(Value::Boolean("#false".to_string())),
             }
         }
         Operator::GreaterThan => Ok(greater_than_number(
-            &evaluate_expression(left, scope)?,
-            &evaluate_expression(right, scope)?,
+            &left.evaluate_expression(scope)?,
+            &right.evaluate_expression(scope)?,
         )?),
         Operator::LessThan => Ok(less_than_number(
-            &evaluate_expression(left, scope)?,
-            &evaluate_expression(right, scope)?,
+            &left.evaluate_expression(scope)?,
+            &right.evaluate_expression(scope)?,
         )?),
         Operator::GreaterEqTo => Ok(greater_than_equal_number(
-            &evaluate_expression(left, scope)?,
-            &evaluate_expression(right, scope)?,
+            &left.evaluate_expression(scope)?,
+            &right.evaluate_expression(scope)?,
         )?),
         Operator::LessEqTo => Ok(less_than_equal_number(
-            &evaluate_expression(left, scope)?,
-            &evaluate_expression(right, scope)?,
+            &left.evaluate_expression(scope)?,
+            &right.evaluate_expression(scope)?,
         )?),
     }
 }
@@ -461,7 +514,7 @@ fn evaluate_identifier_expression(
     match scope.definitions.get(identifier_name.as_str()) {
         Some(def) => match def.as_ref() {
             Definition::ConstantDefinition(_name, expression) => {
-                Ok(evaluate_expression(&expression, scope)?)
+                Ok((&expression).evaluate_expression(scope)?)
             }
             Definition::FunctionDefinition(_, _, _) => {
                 unreachable!("This identifer is somehow evaluating to a function")
@@ -470,11 +523,11 @@ fn evaluate_identifier_expression(
                 unreachable!("This identifer is somehow evaluating to a struct")
             }
         },
-        None => panic!(
+        None => Err(LelaError::EvaluationError(format!(
             "Identifier {} not in scope! Here's what was in scope: {:?}",
             identifier_name.as_str(),
             scope.definitions
-        ),
+        ))),
     }
 }
 
@@ -512,7 +565,7 @@ fn evaluate_function_call_with_definition(
 
             for (i, param) in given_parameters.iter().enumerate() {
                 let new_param_name = def_parameters.get(i).unwrap();
-                let new_expression = evaluate_expression(param, scope)?;
+                let new_expression = param.evaluate_expression(scope)?;
                 function_scope.definitions.insert(
                     new_param_name.clone(),
                     Box::new(Definition::ConstantDefinition(
@@ -521,26 +574,30 @@ fn evaluate_function_call_with_definition(
                     )),
                 );
             }
-            evaluate_expression(&expr.call(&function_scope)?, &function_scope)
+            (&expr.call(&function_scope)?).evaluate_expression(&function_scope)
         }
         _ => unreachable!(),
     }
 }
 
 // Evaluates a given expression with a given scope
-pub fn evaluate_expression(expr: &Box<Expression>, scope: &Scope) -> Result<Value, LelaError> {
-    match expr.as_ref() {
-        Expression::ValueExpr(n) => Ok(n.clone()),
-        Expression::Operation(op, left, right) => {
-            evaluate_operation_expression(&op, left, right, scope)
-        }
-        Expression::Identifier(name) => Ok(evaluate_identifier_expression(name, scope)?),
-        Expression::FunctionCall(identifier, parameters) => {
-            evaluate_function_call(identifier, parameters, scope)
-        }
-        Expression::ConditionalTree(cases, values) => evaluate_conditional(cases, values, scope),
-        Expression::UnaryOperation(op, expr) => {
-            evaluate_unary_operation(op, &evaluate_expression(expr, scope)?, scope)
+impl Expression {
+    pub fn evaluate_expression(&self, scope: &Scope) -> Result<Value, LelaError> {
+        match self {
+            Expression::ValueExpr(n) => Ok(n.clone()),
+            Expression::Operation(op, left, right) => {
+                evaluate_operation_expression(&op, left, right, scope)
+            }
+            Expression::Identifier(name) => Ok(evaluate_identifier_expression(name, scope)?),
+            Expression::FunctionCall(identifier, parameters) => {
+                evaluate_function_call(identifier, parameters, scope)
+            }
+            Expression::ConditionalTree(cases, values) => {
+                evaluate_conditional(cases, values, scope)
+            }
+            Expression::UnaryOperation(op, expr) => {
+                evaluate_unary_operation(op, &expr.evaluate_expression(scope)?, scope)
+            }
         }
     }
 }
@@ -570,13 +627,13 @@ fn evaluate_unary_operation(
             )),
         },
         UnaryOperator::First => match val {
-            Value::Pair(first, _) => evaluate_expression(first, scope),
+            Value::Pair(first, _) => first.evaluate_expression(scope),
             _ => Err(LelaError::EvaluationError(
                 "Cannot get the first on a non-pair type.".to_string(),
             )),
         },
         UnaryOperator::Rest => match val {
-            Value::Pair(_, rest) => evaluate_expression(rest, scope),
+            Value::Pair(_, rest) => rest.evaluate_expression(scope),
             _ => Err(LelaError::EvaluationError(
                 "Cannot get the rest on a non-pair type.".to_string(),
             )),
@@ -594,11 +651,11 @@ fn evaluate_conditional(
     ));
     if cases.len() == values.len() {
         for (i, cond) in cases.iter().enumerate() {
-            match evaluate_expression(cond, scope) {
+            match cond.evaluate_expression(scope) {
                 Ok(Value::Boolean(val)) => match parse_boolean(&val) {
                     Ok(b) => {
                         if b {
-                            answer = evaluate_expression(&values[i], scope);
+                            answer = (&values[i]).evaluate_expression(scope);
                             break;
                         }
                     }

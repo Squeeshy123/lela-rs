@@ -1,12 +1,31 @@
 use crate::lela::{ProgramEntry, Definition, Expression, Operator, Value, FunctionObject};
 use crate::lela;
 use unescape::unescape;
+use lalrpop_util::ErrorRecovery;
 
-grammar;
 
-pub DefinitionOrExpression: Box<ProgramEntry> = {
+grammar<'err>(errors: &'err mut Vec<ErrorRecovery<usize, Token<'input>, &'static str>>);
+
+
+pub Program: Vec<Box<ProgramEntry>> = {
+    <first: DefinitionOrExpression> ";" <mut rest: Program> => {
+        rest.insert(0, first);
+        rest
+    },
+    r"//[^\n]*" <mut rest: Program> => {
+        let mut list = vec![Box::new(ProgramEntry::Comment)];
+        list.append(&mut rest);
+        list
+    },
+    <last: DefinitionOrExpression> ";" => {
+           vec![last]
+    },
+}
+
+DefinitionOrExpression: Box<ProgramEntry> = {
     <Definition>,
-    <Expr> => Box::new(ProgramEntry::Expression(<>))
+    <Expr> => Box::new(ProgramEntry::Expression(<>)),
+    ! => { errors.push(<>.clone()); Box::new(ProgramEntry::ParseError(format!("{:?}", <>.clone()))) }
 }
 
 Definition: Box<ProgramEntry> = {
@@ -134,12 +153,13 @@ Term: Box<Expression> = {
 
     r"#true" => Box::new(Expression::ValueExpr(Value::Boolean(<>.to_string()))),
     r"#false" => Box::new(Expression::ValueExpr(Value::Boolean(<>.to_string()))),
+    r"#\[\]" => Box::new(Expression::ValueExpr(Value::Empty)),
     StringLiteral => Box::new(Expression::ValueExpr(Value::String(<>.to_string()))),
     "(" <Expr> ")"
 };
 
 
-// Maximum: 4294967296 possible integers
+// Maximum: 4,294,967,296 possible integers
 // supports numbers between -2,147,483,647 and 2,147,483,647
 // which, in my opinion, is a reasonable amount at the moment
 Num: String = {

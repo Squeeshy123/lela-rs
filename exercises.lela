@@ -1,5 +1,7 @@
-struct no_parent [];
+struct no_parent []; 
+//{}
 struct child [father, mother, name, date, eyes];
+//{}
 
 let NP = make_no_parent();
 
@@ -11,4 +13,37 @@ let Dave = make_child(Carl, Bettina, "Dave", 1955, "black");
 let Eva = make_child(Carl, Bettina, "Eva", 1965, "blue");
 let Fred = make_child(NP, NP, "Fred", 1966, "pink");
  
-let Gustav = make_child(Fred, Eva, "Gustav", 1988, "brown")
+let Gustav = make_child(Fred, Eva, "Gustav", 1988, "brown");
+
+
+
+func count_persons(ft) {
+    switch {
+        case (no_parent?(ft)): 0,
+        case (child?(ft)): 
+            ((count_persons(child.father(ft)) + count_persons(child.mother(ft))) + 1),
+    }
+};
+
+struct cons [first, rest];
+//{}
+
+func append_cons(a, b) {
+    switch {
+        case (a is #[]): b,
+        case #true: make_cons(cons.first(a), append_cons(cons.rest(a), b)),
+    }
+};
+
+//Develop the function eye-colors, which consumes a family tree and produces a 
+// list of all eye colors in the tree. An eye color may occur more than once in the resulting list.
+func eye_colors(ft) {
+    switch {
+        case (no_parent?(ft)): #[],
+        case (child?(ft)): 
+            make_cons(child.eyes(ft), append_cons(eye_colors(child.father(ft)), eye_colors(child.mother(ft)))),
+    }
+};
+
+// Brown, Pink, Blue, Green, Green
+eye_colors(Gustav);

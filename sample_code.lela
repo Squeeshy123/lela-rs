@@ -1,6 +1,6 @@
 let fifteen = 15;
 
-// This is a test comment :P;
+//something hello
 
 struct Pair [left, right];
 
@@ -17,9 +17,11 @@ func add(a, b) {
 
 (15 > 4);
 
+pair?(p);
+
 func factorial(n) {
     switch {
-        case (n is 0): 1,
+        case (n is 0): 1, 
         case #true: (n * factorial((n - 1))),
     }
 };
@@ -28,8 +30,8 @@ factorial(5);
 
 func exp(n, x) {
     switch {
-        case (x is 0): (1),
-        case #true: (n * exp(n, (x - 1))),
+        case (x is 0): (1), 
+        case #true: (n * exp(n, (x - 1))), 
     }
 };
 
@@ -70,7 +72,7 @@ func implies(a, b) {
 implies(#true, #false);
 
 
-rest([1]);
+[]
 
 (10 + 12);
 (10 + -5);
@@ -82,4 +84,4 @@ let the_other_one = 10;
 switch {
     case (fifteen is 15): 150000,
     case #true: -100,
-}
+};
