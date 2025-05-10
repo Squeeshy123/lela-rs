@@ -3,6 +3,7 @@ use lalrpop_util::lalrpop_mod;
 use lela::create_default_scope;
 use lela::{ProgramEntry, evaluate_program};
 use lela_grammar::ProgramParser;
+use lela_grammar::Token;
 use std::env;
 use std::fs;
 
@@ -23,6 +24,21 @@ fn read_from_file(file_path: &String) -> String {
 //
 // something(hello, hi)
 
+fn map_parsing_to_program(
+    input: Result<Vec<Box<ProgramEntry>>, lalrpop_util::ParseError<usize, Token, &'static str>>,
+) -> Vec<Result<Box<ProgramEntry>, LelaError>> {
+    match input {
+        Ok(entries) => entries
+            .into_iter()
+            .map(|entry| match entry.as_ref() {
+                ProgramEntry::ParseError(s) => Err(LelaError::SyntaxError(s.clone())),
+                _ => Ok(entry),
+            })
+            .collect(),
+        Err(error) => panic!("{}", error),
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let mut file_path: Option<String> = args.get(1).cloned();
@@ -35,17 +51,9 @@ fn main() {
 
     // Sample parsing code for a single expression
     let parser = ProgramParser::new();
-    let output = parser.parse(&mut errors, &read);
-    let program: Vec<Result<Box<ProgramEntry>, LelaError>> = match output {
-        Ok(entries) => entries
-            .into_iter()
-            .map(|entry| match entry.as_ref() {
-                ProgramEntry::ParseError(s) => Err(LelaError::SyntaxError(s.clone())),
-                _ => Ok(entry),
-            })
-            .collect(),
-        Err(error) => panic!("{}", error),
-    };
+    let output: Result<Vec<Box<ProgramEntry>>, lalrpop_util::ParseError<_, _, _>> =
+        parser.parse(&mut errors, &read);
+    let program: Vec<Result<Box<ProgramEntry>, LelaError>> = map_parsing_to_program(output);
 
     /*match output {
         Ok(entries) => entries
@@ -61,7 +69,10 @@ fn main() {
     //println!("{:?}", errors);
     //println!("{:?}", &program);
     let mut def_scope = create_default_scope();
-    for val in evaluate_program(program, &mut def_scope) {
-        println!("{:?}", val);
+    for result in evaluate_program(program, &mut def_scope) {
+        match result {
+            Ok(val) => println!("{}", val),
+            Err(error) => println!("{}", error),
+        }
     }
 }

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ops::Add;
 
 use std::clone::Clone;
-use std::fmt;
+use std::fmt::{self, Display};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -39,6 +39,15 @@ pub enum LelaError {
     SyntaxError(String),
 }
 
+impl Display for LelaError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EvaluationError(msg) => write!(f, "Evaluation Error: {}", msg),
+            Self::SyntaxError(msg) => write!(f, "Syntax Error: {}", msg)
+        }
+    }
+}
+
 // Each "line" of code in Lela is a program entry
 // Which is either a definition, or an expression
 #[derive(Debug)]
@@ -70,6 +79,24 @@ pub enum Expression {
     FunctionCall(String, Vec<Box<Expression>>),
 }
 
+impl Display for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Expression::ValueExpr(value) => write!(f, "{}", value),
+            Expression::Identifier(name) => write!(f, "{}", name),
+            Expression::Operation(op, left, right) => write!(f, "{left} {op} {right}",),
+            Expression::UnaryOperation(op, expr) => write!(f, "{op}({expr})"),
+            Expression::ConditionalTree(conds, vals) => {
+                for (i, cond) in conds.iter().enumerate() {
+                    write!(f, "[{cond}, {}]", vals.get(i).unwrap())?
+                }
+                Ok(())
+            },
+            Expression::FunctionCall(name, params) => write!(f, "{name}({:?})", params),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum UnaryOperator {
     Negate,
@@ -77,6 +104,18 @@ pub enum UnaryOperator {
     SquareRoot,
     First,
     Rest,
+}
+impl Display for UnaryOperator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let op = match self {
+            UnaryOperator::Negate => "-",
+            UnaryOperator::Not => "not",
+            UnaryOperator::SquareRoot => "sqrt",
+            UnaryOperator::First => "first",
+            UnaryOperator::Rest => "rest",
+        };
+        write!(f, "{op}")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -92,6 +131,26 @@ pub enum Operator {
     And,
     Or,
     Equals,
+}
+
+impl Display for Operator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let op= match self {
+            Operator::Add => "+",
+            Operator::Subtract => "-",
+            Operator::Multiply => "*",
+            Operator::Divide => "/",
+            Operator::GreaterThan => ">",
+            Operator::LessThan => "<",
+            Operator::GreaterEqTo => ">=",
+            Operator::LessEqTo => "<=",
+            Operator::And => "and",
+            Operator::Or => "or",
+            Operator::Equals => "==",
+        };
+
+        write!(f, "{}", op)
+    }
 }
 
 // A Scope is a set of definitions that 'replace' identifiers,
@@ -110,6 +169,36 @@ pub enum Value {
     Pair(Box<Expression>, Box<Expression>),
     Empty,
     List(Vec<Box<Expression>>),
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Number(val) => write!(f, "{}", val),
+            Value::String(val) => write!(f, r##""{}""##, val),
+            Value::Boolean(val) => write!(f, "{}", val),
+            Value::Struct(name, expressions) => {
+                write!(f, "{}(", name)?;
+                for (i, res) in expressions.iter().enumerate() {
+                    let val = match res {
+                        Ok(expr) => format!("{}", expr),
+                        Err(msg) => format!("{}", msg),
+                    };
+                    
+                    if i < expressions.len() - 1 {
+                        write!(f, "{val}, ")?;
+                    } else {
+                        write!(f, "{val}")?;
+                    }
+                }
+                write!(f, ")")?;
+                Ok(())
+            }
+            Value::Pair(left, right) => write!(f, "cons({}, {})", left, right),
+            Value::Empty => write!(f, "#[]"),
+            Value::List(expressions) => write!(f, "#[{:?}]", expressions),
+        }
+    }
 }
 
 pub fn vec_to_pair_list(v: &Vec<Box<Expression>>) -> Expression {

@@ -22,7 +22,7 @@ pair?(p);
 func factorial(n) {
     switch {
         case (n is 0): 1, 
-        case #true: (n * factorial((n - 1))),
+        case else: (n * factorial((n - 1))),
     }
 };
 
@@ -31,7 +31,7 @@ factorial(5);
 func exp(n, x) {
     switch {
         case (x is 0): (1), 
-        case #true: (n * exp(n, (x - 1))), 
+        case else: (n * exp(n, (x - 1)))
     }
 };
 
@@ -48,8 +48,8 @@ func exp_with_square(n, x) {
             (n),
         case (x is 0):
             (1),
-        case #true:
-            (square(n) * exp_with_square(n, (x - 2))),
+        case else:
+            (square(n) * exp_with_square(n, (x - 2)))
     }
 };
 
@@ -72,7 +72,7 @@ func implies(a, b) {
 implies(#true, #false);
 
 
-[]
+#[];
 
 (10 + 12);
 (10 + -5);
@@ -83,5 +83,5 @@ let the_other_one = 10;
 
 switch {
     case (fifteen is 15): 150000,
-    case #true: -100,
+    case else: -100,
 };

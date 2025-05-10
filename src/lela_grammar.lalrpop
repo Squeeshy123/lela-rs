@@ -59,10 +59,23 @@ Expr: Box<Expression> = {
     Term,
     Identifier,
     "(" <a:Expr> <op:ExprOp> <b:Expr> ")" => Box::new(Expression::Operation(op, a, b)),
-    "[" <list:ListEntries<Expr>> "]" => Box::new(lela::vec_to_pair_list(&list)),
+    "#[" <list:ListEntries<Expr>> "]" => Box::new(lela::vec_to_pair_list(&list)),
     FunctionExpression,
-    ConditionalExpression
+    ConditionalExpression,
+    // LocalProgram,
+    // Lambda
 };
+
+// LocalProgram: Box<Expression> = {
+//     "local" "{" Program "}" => // Build the expression...
+// }
+
+// Lambda: Box<Expression> = {
+//  "(" <params: ListEntries<IdentifierToken>> ")" "->" "{" <answer:Expr> "}" => {
+//       // Make the lambda magic happen
+//      }
+//}
+
 
 ConditionalExpression: Box<Expression> = {
     <IfExpression>,
@@ -79,20 +92,25 @@ IfExpression: Box<Expression> = {
 }
 
 ConditionalTreeExpression: Box<Expression> = {
-    "switch" "{" <cases: ConditionalTreeBranch+> "}" => {
+    "switch" "{" <cases: (ConditionalTreeBranch ",")+> <final_case: (ConditionalTreeBranch ","?)> "}" => {
         // There's likely some more 'rusty' way to handle this
+        let mut mapped_cases: Vec<(Box<Expression>, Box<Expression>)> = cases.iter().map(|c| c.clone().0).collect();
+        mapped_cases.push(final_case.0);
         let mut conditions = Vec::new();
         let mut values = Vec::new();
-        for (cond, value) in cases.into_iter() {
+        for (cond, value) in mapped_cases.into_iter() {
             conditions.push(cond);
             values.push(value);
         }
+
+        
         Box::new(Expression::ConditionalTree(conditions, values))
     }
 }
 
 ConditionalTreeBranch: (Box<Expression>, Box<Expression>) = {
-    "case" <cond: Expr> ":" <value: Expr> "," => (cond, value)
+    "case" <cond: Expr> ":" <value: Expr> => (cond, value),
+    "case" "else" ":" <value: Expr> => (Box::new(Expression::ValueExpr(Value::Boolean("#true".to_string()))), value)    
 }
 
 // Expressions:
@@ -122,10 +140,6 @@ ExprOp: Operator = {
 };
 
 
-
-
-
-
 ListEntries<T>: Vec<T> = {
     <mut v:(<T> ",")*> <e:T?> => match e {
         None => v,
@@ -150,7 +164,6 @@ StringLiteral: String = {
 
 Term: Box<Expression> = {
     Num => Box::new(Expression::ValueExpr(Value::Number(<>))),
-
     r"#true" => Box::new(Expression::ValueExpr(Value::Boolean(<>.to_string()))),
     r"#false" => Box::new(Expression::ValueExpr(Value::Boolean(<>.to_string()))),
     r"#\[\]" => Box::new(Expression::ValueExpr(Value::Empty)),
