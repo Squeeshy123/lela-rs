@@ -27,6 +27,33 @@ impl FunctionObject {
     }
 }
 
+impl PartialEq for FunctionObject {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Function {
+    parameters: Vec<String>,
+    evaluation: Box<FunctionObject>,
+}
+
+impl PartialEq for Function {
+    fn eq(&self, other: &Self) -> bool {
+        self.parameters == other.parameters && self.evaluation == other.evaluation
+    }
+}
+
+impl Function {
+    pub fn new(params: Vec<String>, eval: FunctionObject) -> Function {
+        Function {
+            parameters: params,
+            evaluation: Box::new(eval),
+        }
+    }
+}
+
 // Illegal Expressions can be created. Since this is a dynamically typed language,
 // types are only important once evaluation occurs.
 // I was tempted to make it impossible for the Expression data structure to represent an illegal
@@ -43,7 +70,7 @@ impl Display for LelaError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EvaluationError(msg) => write!(f, "Evaluation Error: {}", msg),
-            Self::SyntaxError(msg) => write!(f, "Syntax Error: {}", msg)
+            Self::SyntaxError(msg) => write!(f, "Syntax Error: {}", msg),
         }
     }
 }
@@ -63,7 +90,7 @@ pub enum Definition {
     // Constant Name, Value
     ConstantDefinition(String, Box<Expression>),
     // Function Name,  Parameters, Value
-    FunctionDefinition(String, Vec<String>, FunctionObject),
+    FunctionDefinition(String, Arc<Function>),
     // Struct name, Struct fields
     StructDefinition(String, Vec<String>),
 }
@@ -91,7 +118,7 @@ impl Display for Expression {
                     write!(f, "[{cond}, {}]", vals.get(i).unwrap())?
                 }
                 Ok(())
-            },
+            }
             Expression::FunctionCall(name, params) => write!(f, "{name}({:?})", params),
         }
     }
@@ -135,7 +162,7 @@ pub enum Operator {
 
 impl Display for Operator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let op= match self {
+        let op = match self {
             Operator::Add => "+",
             Operator::Subtract => "-",
             Operator::Multiply => "*",
@@ -167,7 +194,7 @@ pub enum Value {
     Boolean(String),
     Struct(String, Vec<Result<Box<Expression>, LelaError>>),
     Pair(Box<Expression>, Box<Expression>),
-    Function(Vec<String>, Box<Expression>),
+    Function(Arc<Function>),
     List(Vec<Box<Expression>>),
     Empty,
 }
@@ -179,26 +206,26 @@ impl Display for Value {
             Value::String(val) => write!(f, r##""{}""##, val),
             Value::Boolean(val) => write!(f, "{}", val),
             Value::Struct(name, expressions) => {
-                        write!(f, "{}(", name)?;
-                        for (i, res) in expressions.iter().enumerate() {
-                            let val = match res {
-                                Ok(expr) => format!("{}", expr),
-                                Err(msg) => format!("{}", msg),
-                            };
-                    
-                            if i < expressions.len() - 1 {
-                                write!(f, "{val}, ")?;
-                            } else {
-                                write!(f, "{val}")?;
-                            }
-                        }
-                        write!(f, ")")?;
-                        Ok(())
+                write!(f, "{}(", name)?;
+                for (i, res) in expressions.iter().enumerate() {
+                    let val = match res {
+                        Ok(expr) => format!("{}", expr),
+                        Err(msg) => format!("{}", msg),
+                    };
+
+                    if i < expressions.len() - 1 {
+                        write!(f, "{val}, ")?;
+                    } else {
+                        write!(f, "{val}")?;
                     }
+                }
+                write!(f, ")")?;
+                Ok(())
+            }
             Value::Pair(left, right) => write!(f, "cons({}, {})", left, right),
             Value::Empty => write!(f, "#[]"),
             Value::List(expressions) => write!(f, "#[{:?}]", expressions),
-            Value::Function(items, expression) => write!(f, ""),
+            Value::Function(func) => write!(f, "{:?}", func),
         }
     }
 }
@@ -238,21 +265,23 @@ pub fn define_struct(struct_name: String, fields: Vec<String>, scope: &mut Scope
         define_function(
             scope,
             accessor(&field_name).as_str(),
-            vec!["this".to_string()],
-            FunctionObject::new(move |fun_scope| {
-                match (&Box::new(Expression::Identifier("this".to_string())))
-                    .evaluate_expression(fun_scope)
-                {
-                    Ok(Value::Struct(_name, vals)) => {
-                        let eval =
-                            (&<Result<Box<Expression>, LelaError> as Clone>::clone(&vals[i])?)
-                                .evaluate_expression(&fun_scope)?;
+            Function::new(
+                vec!["this".to_string()],
+                FunctionObject::new(move |fun_scope| {
+                    match (&Box::new(Expression::Identifier("this".to_string())))
+                        .evaluate_expression(fun_scope)
+                    {
+                        Ok(Value::Struct(_name, vals)) => {
+                            let eval =
+                                (&<Result<Box<Expression>, LelaError> as Clone>::clone(&vals[i])?)
+                                    .evaluate_expression(&fun_scope)?;
 
-                        Ok(Box::new(Expression::ValueExpr(eval)))
+                            Ok(Box::new(Expression::ValueExpr(eval)))
+                        }
+                        _ => panic!("this should really be in a result format..."),
                     }
-                    _ => panic!("this should really be in a result format..."),
-                }
-            }),
+                }),
+            ),
         );
     }
 
@@ -270,15 +299,20 @@ pub fn define_struct(struct_name: String, fields: Vec<String>, scope: &mut Scope
         predicate.clone(),
         Box::new(Definition::FunctionDefinition(
             predicate,
-            vec!["this".to_string()],
-            FunctionObject::new(move |fun_scope: &Scope| {
-                match evaluate_identifier_expression(&"this".to_string(), fun_scope)? {
-                    Value::Struct(name, _) => Ok(Box::new(Expression::ValueExpr(Value::Boolean(
-                        "#".to_string() + &(dup_name == name).to_string(),
-                    )))),
-                    _ => Err(LelaError::EvaluationError("Expected a Struct!".to_string())),
-                }
-            }),
+            Arc::new(Function::new(
+                vec!["this".to_string()],
+                FunctionObject::new(
+                    move |fun_scope: &Scope| match evaluate_identifier_expression(
+                        &"this".to_string(),
+                        fun_scope,
+                    )? {
+                        Value::Struct(name, _) => Ok(Box::new(Expression::ValueExpr(
+                            Value::Boolean("#".to_string() + &(dup_name == name).to_string()),
+                        ))),
+                        _ => Err(LelaError::EvaluationError("Expected a Struct!".to_string())),
+                    },
+                ),
+            )),
         )),
     );
 
@@ -295,22 +329,24 @@ pub fn define_struct(struct_name: String, fields: Vec<String>, scope: &mut Scope
         make_struc_name.clone(),
         Box::new(Definition::FunctionDefinition(
             make_struc_name,
-            fields.clone(),
-            FunctionObject::new(move |fun_scope: &Scope| {
-                Ok(Box::new(Expression::ValueExpr(Value::Struct(
-                    struct_name.clone(),
-                    fields
-                        .clone()
-                        .iter()
-                        .map(|name| {
-                            Ok(Box::new(Expression::ValueExpr(
-                                (&Box::new(Expression::Identifier(name.clone())))
-                                    .evaluate_expression(fun_scope)?,
-                            )))
-                        })
-                        .collect(),
-                ))))
-            }),
+            Arc::new(Function::new(
+                fields.clone(),
+                FunctionObject::new(move |fun_scope: &Scope| {
+                    Ok(Box::new(Expression::ValueExpr(Value::Struct(
+                        struct_name.clone(),
+                        fields
+                            .clone()
+                            .iter()
+                            .map(|name| {
+                                Ok(Box::new(Expression::ValueExpr(
+                                    (&Box::new(Expression::Identifier(name.clone())))
+                                        .evaluate_expression(fun_scope)?,
+                                )))
+                            })
+                            .collect(),
+                    ))))
+                }),
+            )),
         )),
     );
 }
@@ -439,14 +475,9 @@ define_uniform_value_function!(equals_number, Value::Number(a), Value::Number(b)
     )
 });
 
-pub fn define_function(
-    scope: &mut Scope,
-    name: &str,
-    params: Vec<String>,
-    func: FunctionObject,
-) -> Option<Box<Definition>> {
+pub fn define_function(scope: &mut Scope, name: &str, func: Function) -> Option<Box<Definition>> {
     // Given a scope, we want to add a definition with the given name and that evaluates to the given expression
-    let def = Definition::FunctionDefinition(name.to_string(), params, func);
+    let def = Definition::FunctionDefinition(name.to_string(), Arc::new(func));
     add_to_scope(scope, name.to_owned(), def)
 }
 
@@ -465,7 +496,7 @@ fn create_program_definition(definition: &Definition, scope: &mut Scope) {
         Definition::ConstantDefinition(name, _) => {
             add_to_scope(scope, name.clone(), definition.to_owned());
         }
-        Definition::FunctionDefinition(name, _, _) => {
+        Definition::FunctionDefinition(name, _) => {
             add_to_scope(scope, name.clone(), definition.to_owned());
         }
         Definition::StructDefinition(name, fields) => {
@@ -488,24 +519,28 @@ pub fn create_default_scope() -> Scope {
     define_function(
         &mut scope,
         "first",
-        vec!["list".to_owned()],
-        FunctionObject::new(|_| {
-            Ok(Box::new(Expression::UnaryOperation(
-                UnaryOperator::First,
-                Box::new(Expression::Identifier("list".to_string())),
-            )))
-        }),
+        Function::new(
+            vec!["list".to_owned()],
+            FunctionObject::new(|_| {
+                Ok(Box::new(Expression::UnaryOperation(
+                    UnaryOperator::First,
+                    Box::new(Expression::Identifier("list".to_string())),
+                )))
+            }),
+        ),
     );
     define_function(
         &mut scope,
         "rest",
-        vec!["list".to_owned()],
-        FunctionObject::new(|_| {
-            Ok(Box::new(Expression::UnaryOperation(
-                UnaryOperator::Rest,
-                Box::new(Expression::Identifier("list".to_string())),
-            )))
-        }),
+        Function::new(
+            vec!["list".to_owned()],
+            FunctionObject::new(|_| {
+                Ok(Box::new(Expression::UnaryOperation(
+                    UnaryOperator::Rest,
+                    Box::new(Expression::Identifier("list".to_string())),
+                )))
+            }),
+        ),
     );
     scope
 }
@@ -607,9 +642,7 @@ fn evaluate_identifier_expression(
             Definition::ConstantDefinition(_name, expression) => {
                 Ok((&expression).evaluate_expression(scope)?)
             }
-            Definition::FunctionDefinition(_, _, _) => {
-                unreachable!("This identifer is somehow evaluating to a function")
-            }
+            Definition::FunctionDefinition(_, fun) => Ok(Value::Function(fun.clone())),
             Definition::StructDefinition(_, _) => {
                 unreachable!("This identifer is somehow evaluating to a struct")
             }
@@ -644,18 +677,18 @@ fn evaluate_function_call_with_definition(
     scope: &Scope,
 ) -> Result<Value, LelaError> {
     match function_def {
-        Definition::FunctionDefinition(_name, def_parameters, expr) => {
-            if def_parameters.len() != given_parameters.len() {
+        Definition::FunctionDefinition(_name, expr) => {
+            if expr.parameters.len() != given_parameters.len() {
                 panic!(
                     "Expected {} parameters, given {}",
-                    def_parameters.len(),
+                    expr.parameters.len(),
                     given_parameters.len()
                 )
             }
             let mut function_scope = scope.clone();
 
             for (i, param) in given_parameters.iter().enumerate() {
-                let new_param_name = def_parameters.get(i).unwrap();
+                let new_param_name = expr.parameters.get(i).unwrap();
                 let new_expression = param.evaluate_expression(scope)?;
                 function_scope.definitions.insert(
                     new_param_name.clone(),
@@ -665,9 +698,37 @@ fn evaluate_function_call_with_definition(
                     )),
                 );
             }
-            (&expr.call(&function_scope)?).evaluate_expression(&function_scope)
+            (&expr.evaluation.call(&function_scope)?).evaluate_expression(&function_scope)
         }
-        _ => unreachable!(),
+        Definition::ConstantDefinition(name, val) => match val.evaluate_expression(scope) {
+            Ok(Value::Function(func)) => {
+                if func.parameters.len() != given_parameters.len() {
+                    panic!(
+                        "Expected {} parameters, given {}",
+                        func.parameters.len(),
+                        given_parameters.len()
+                    )
+                }
+                let mut function_scope = scope.clone();
+
+                for (i, param) in given_parameters.iter().enumerate() {
+                    let new_param_name = func.parameters.get(i).unwrap();
+                    let new_expression = param.evaluate_expression(scope)?;
+                    function_scope.definitions.insert(
+                        new_param_name.clone(),
+                        Box::new(Definition::ConstantDefinition(
+                            new_param_name.clone(),
+                            Box::new(Expression::ValueExpr(new_expression)),
+                        )),
+                    );
+                }
+                (&func.evaluation.call(&function_scope)?).evaluate_expression(&function_scope)
+            }
+            _ => Err(LelaError::EvaluationError(
+                "Expected this expression to evaluate to a function".to_string(),
+            )),
+        },
+        _ => unreachable!("Met a: {:?}", function_def),
     }
 }
 

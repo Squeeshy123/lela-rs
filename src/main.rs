@@ -1,7 +1,7 @@
 use crate::lela::LelaError;
 use lalrpop_util::lalrpop_mod;
 use lela::create_default_scope;
-use lela::{ProgramEntry, evaluate_program};
+use lela::{evaluate_program, ProgramEntry};
 use lela_grammar::ProgramParser;
 use lela_grammar::Token;
 use std::env;
@@ -55,19 +55,6 @@ fn main() {
         parser.parse(&mut errors, &read);
     let program: Vec<Result<Box<ProgramEntry>, LelaError>> = map_parsing_to_program(output);
 
-    /*match output {
-        Ok(entries) => entries
-            .iter()
-            .map(|entry| match entry.as_ref() {
-                ProgramEntry::ParseError => Err(LelaError::SyntaxError("".to_string())),
-                _ => Ok(entry),
-            })
-            .collect(),
-        Err(_) => Err(LelaError::SyntaxError("".to_string())),
-    };*/
-
-    //println!("{:?}", errors);
-    //println!("{:?}", &program);
     let mut def_scope = create_default_scope();
     for result in evaluate_program(program, &mut def_scope) {
         match result {

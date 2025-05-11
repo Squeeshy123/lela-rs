@@ -1,8 +1,8 @@
-use crate::lela::{ProgramEntry, Definition, Expression, Operator, Value, FunctionObject};
+use crate::lela::{ProgramEntry, Definition, Expression, Operator, Value, Function, FunctionObject};
 use crate::lela;
 use unescape::unescape;
 use lalrpop_util::ErrorRecovery;
-
+use std::sync::Arc;
 
 grammar<'err>(errors: &'err mut Vec<ErrorRecovery<usize, Token<'input>, &'static str>>);
 
@@ -48,10 +48,10 @@ ConstantDefinition: Box<ProgramEntry> = {
 FunctionDefinition: Box<ProgramEntry> = {
     "func" <ident:IdentifierToken> "(" <params: ListEntries<IdentifierToken>> ")" "{" <answer:Expr> "}" => {
         let mut string_params: Vec<String> = Vec::new();
-        for name in params {
-            string_params.push(name)
+        for name in &params {
+            string_params.push(name.to_string())
         }
-        Box::new(ProgramEntry::Definition(Definition::FunctionDefinition(ident, string_params, FunctionObject::new(move |_| Ok(answer.clone())))))
+        Box::new(ProgramEntry::Definition(Definition::FunctionDefinition(ident, Arc::new(Function::new(params, FunctionObject::new(move |_| Ok(answer.clone())))))))
     }
 }
 

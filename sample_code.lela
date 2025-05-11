@@ -54,11 +54,22 @@ func exp_with_square(n, x) {
 
 exp_with_square(5, 3);
 
+
+struct cons [first, rest];
+
 func map(list, f) {
     switch {
         case (list is #[]): #[],
-        case else: cons(f(first(list)), map(rest(list), f))
+        case else: make_cons(f(first(list)), map(rest(list), f))
     }
 };
+
+func foldr(list, f, base_case) {
+     switch {
+        case (list is #[]): base_case,
+        case else: f(first(list), foldr(rest(list), f, base_case))
+     }
+};
+
 
 map(#[1,2,3,4,5,6,7,8,9,10], square);
