@@ -3,6 +3,7 @@ let fifteen = 15;
 //something hello
 
 struct Pair [left, right];
+//{}
 
 let string_test = "hello!";
 string_test;
@@ -14,8 +15,6 @@ pair.left(p);
 func add(a, b) {
     (a + b)
 };
-
-(15 > 4);
 
 pair?(p);
 
@@ -53,35 +52,13 @@ func exp_with_square(n, x) {
     }
 };
 
-(exp_with_square(5, 3));
+exp_with_square(5, 3);
 
-func not(a) {
-    if (a) {
-        #false
-    } else {
-        #true
+func map(list, f) {
+    switch {
+        case (list is #[]): #[],
+        case else: cons(f(first(list)), map(rest(list), f))
     }
 };
 
-not(#false);
-
-func implies(a, b) {
-    (b or not(a))
-};
-
-implies(#true, #false);
-
-
-#[];
-
-(10 + 12);
-(10 + -5);
-
-add(10, 12);
-
-let the_other_one = 10;
-
-switch {
-    case (fifteen is 15): 150000,
-    case else: -100,
-};
+map(#[1,2,3,4,5,6,7,8,9,10], square);

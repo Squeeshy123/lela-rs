@@ -62,8 +62,8 @@ Expr: Box<Expression> = {
     "#[" <list:ListEntries<Expr>> "]" => Box::new(lela::vec_to_pair_list(&list)),
     FunctionExpression,
     ConditionalExpression,
-    // LocalProgram,
-    // Lambda
+    //LocalProgram,
+    //Lambda
 };
 
 // LocalProgram: Box<Expression> = {
@@ -71,10 +71,10 @@ Expr: Box<Expression> = {
 // }
 
 // Lambda: Box<Expression> = {
-//  "(" <params: ListEntries<IdentifierToken>> ")" "->" "{" <answer:Expr> "}" => {
+//     "(" <params: ListEntries<IdentifierToken>> ")" "->" "{" <answer:Expr> "}" => {
 //       // Make the lambda magic happen
-//      }
-//}
+//     }
+// }
 
 
 ConditionalExpression: Box<Expression> = {

@@ -167,8 +167,9 @@ pub enum Value {
     Boolean(String),
     Struct(String, Vec<Result<Box<Expression>, LelaError>>),
     Pair(Box<Expression>, Box<Expression>),
-    Empty,
+    Function(Vec<String>, Box<Expression>),
     List(Vec<Box<Expression>>),
+    Empty,
 }
 
 impl Display for Value {
@@ -178,25 +179,26 @@ impl Display for Value {
             Value::String(val) => write!(f, r##""{}""##, val),
             Value::Boolean(val) => write!(f, "{}", val),
             Value::Struct(name, expressions) => {
-                write!(f, "{}(", name)?;
-                for (i, res) in expressions.iter().enumerate() {
-                    let val = match res {
-                        Ok(expr) => format!("{}", expr),
-                        Err(msg) => format!("{}", msg),
-                    };
+                        write!(f, "{}(", name)?;
+                        for (i, res) in expressions.iter().enumerate() {
+                            let val = match res {
+                                Ok(expr) => format!("{}", expr),
+                                Err(msg) => format!("{}", msg),
+                            };
                     
-                    if i < expressions.len() - 1 {
-                        write!(f, "{val}, ")?;
-                    } else {
-                        write!(f, "{val}")?;
+                            if i < expressions.len() - 1 {
+                                write!(f, "{val}, ")?;
+                            } else {
+                                write!(f, "{val}")?;
+                            }
+                        }
+                        write!(f, ")")?;
+                        Ok(())
                     }
-                }
-                write!(f, ")")?;
-                Ok(())
-            }
             Value::Pair(left, right) => write!(f, "cons({}, {})", left, right),
             Value::Empty => write!(f, "#[]"),
             Value::List(expressions) => write!(f, "#[{:?}]", expressions),
+            Value::Function(items, expression) => write!(f, ""),
         }
     }
 }
