@@ -64,6 +64,7 @@ impl Function {
 pub enum LelaError {
     EvaluationError(String),
     SyntaxError(String),
+    TypeError(String),
 }
 
 impl Display for LelaError {
@@ -71,6 +72,7 @@ impl Display for LelaError {
         match self {
             Self::EvaluationError(msg) => write!(f, "Evaluation Error: {}", msg),
             Self::SyntaxError(msg) => write!(f, "Syntax Error: {}", msg),
+            Self::TypeError(msg) => write!(f, "Type Error: {}", msg),
         }
     }
 }
@@ -199,6 +201,32 @@ pub enum Value {
     Empty,
 }
 
+impl Value {
+    // Wishlist:
+    // A Function that gives the result of attempting to give the raw value of this value, as a specified type
+    // e.g ValueAsI32
+    // For the values:
+    // - as Vec of values
+    // - as i32
+    // - as String
+    // - as Boolean
+    // - as Tuple
+    fn as_i32(&self) -> Result<i32, LelaError> {
+        match self {
+            Value::Number(val) => {
+                let parsed = val.parse::<i32>();
+                match parsed {
+                    Ok(ok) => Ok(ok),
+                    Err(err) => Err(LelaError::TypeError(err.to_string())),
+                }
+            }
+            _ => Err(LelaError::TypeError(
+                "Cannot convert a non Number value to an i32".to_string(),
+            )),
+        }
+    }
+}
+
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -248,6 +276,15 @@ fn parse_boolean(val: &String) -> Result<bool, LelaError> {
         "#false" => Ok(false),
         _ => Err(LelaError::EvaluationError(
             format!("{:?} is not a valid boolean.", val.clone()).to_string(),
+        )),
+    }
+}
+
+fn parse_boolean_value(val: &Value) -> Result<bool, LelaError> {
+    match val {
+        Value::Boolean(s) => parse_boolean(&s),
+        _ => Err(LelaError::TypeError(
+            "This value is not a boolean".to_string(),
         )),
     }
 }
@@ -353,11 +390,12 @@ pub fn define_struct(struct_name: String, fields: Vec<String>, scope: &mut Scope
 
 // Defines a function that takes two Values of the same type.
 macro_rules! define_uniform_value_function {
-    ($func_name:ident, $first_type:pat, $sec_type:pat, $to_do:block) => {
-        fn $func_name(val_a: &Value, val_b: &Value) -> Result<Value, LelaError> {
-            match (val_a, val_b) {
-                ($first_type, $sec_type) => Ok($to_do),
-                // TODO: this error message sucks
+    ($func_name:ident, $uniform_pattern:pat, $a:ident, $b:ident, $result_type:ident, $to_do:expr) => {
+        fn $func_name($a: &Value, $b: &Value) -> Result<Value, LelaError> {
+            match ($a, $b) {
+                ($uniform_pattern, $uniform_pattern) => {
+                    Ok(Value::$result_type(($to_do).to_string()))
+                }
                 (_, _) => Err(LelaError::EvaluationError(format!(
                     "Cannot perform {} on {} and {} types",
                     stringify!($to_do),
@@ -369,111 +407,129 @@ macro_rules! define_uniform_value_function {
     };
 }
 
-define_uniform_value_function!(add_numbers, Value::Number(a), Value::Number(b), {
-    Value::Number((a.parse::<i32>().unwrap() + b.parse::<i32>().unwrap()).to_string())
-});
+define_uniform_value_function!(
+    add_numbers,
+    Value::Number(_),
+    a,
+    b,
+    Number,
+    a.as_i32()? + a.as_i32()?
+);
 
-define_uniform_value_function!(subtract_numbers, Value::Number(a), Value::Number(b), {
-    Value::Number((a.parse::<i32>().unwrap() - b.parse::<i32>().unwrap()).to_string())
-});
+define_uniform_value_function!(
+    subtract_numbers,
+    Value::Number(_),
+    a,
+    b,
+    Number,
+    a.as_i32()? - b.as_i32()?
+);
 
-define_uniform_value_function!(multiply_numbers, Value::Number(a), Value::Number(b), {
-    Value::Number((a.parse::<i32>().unwrap() * b.parse::<i32>().unwrap()).to_string())
-});
+define_uniform_value_function!(
+    multiply_numbers,
+    Value::Number(_),
+    a,
+    b,
+    Number,
+    a.as_i32()? * b.as_i32()?
+);
 
-define_uniform_value_function!(divide_numbers, Value::Number(a), Value::Number(b), {
-    Value::Number((a.parse::<i32>().unwrap() * b.parse::<i32>().unwrap()).to_string())
-});
+define_uniform_value_function!(
+    divide_numbers,
+    Value::Number(_),
+    a,
+    b,
+    Number,
+    a.as_i32()? * b.as_i32()?
+);
 
-define_uniform_value_function!(less_than_number, Value::Number(a), Value::Number(b), {
-    Value::Boolean(
-        "#".to_string().add(
-            (a.parse::<i32>().unwrap() < b.parse::<i32>().unwrap())
-                .to_string()
-                .as_str(),
-        ),
-    )
-});
+define_uniform_value_function!(
+    less_than_number,
+    Value::Number(_),
+    a,
+    b,
+    Boolean,
+    "#".to_string()
+        .add((a.as_i32()? < b.as_i32()?).to_string().as_str())
+);
 
-define_uniform_value_function!(greater_than_number, Value::Number(a), Value::Number(b), {
-    Value::Boolean(
-        "#".to_string().add(
-            (a.parse::<i32>().unwrap() > b.parse::<i32>().unwrap())
-                .to_string()
-                .as_str(),
-        ),
-    )
-});
+define_uniform_value_function!(
+    greater_than_number,
+    Value::Number(_),
+    a,
+    b,
+    Boolean,
+    "#".to_string()
+        .add((a.as_i32()? > b.as_i32()?).to_string().as_str())
+);
 
 define_uniform_value_function!(
     less_than_equal_number,
-    Value::Number(a),
-    Value::Number(b),
-    {
-        Value::Boolean(
-            "#".to_string().add(
-                (a.parse::<i32>().unwrap() <= b.parse::<i32>().unwrap())
-                    .to_string()
-                    .as_str(),
-            ),
-        )
-    }
+    Value::Number(_),
+    a,
+    b,
+    Boolean,
+    "#".to_string()
+        .add((a.as_i32()? <= b.as_i32()?).to_string().as_str(),)
 );
 
 define_uniform_value_function!(
     greater_than_equal_number,
-    Value::Number(a),
-    Value::Number(b),
-    {
-        Value::Boolean(
-            "#".to_string().add(
-                (a.parse::<i32>().unwrap() >= b.parse::<i32>().unwrap())
-                    .to_string()
-                    .as_str(),
-            ),
-        )
-    }
+    Value::Number(_),
+    a,
+    b,
+    Boolean,
+    "#".to_string()
+        .add((a.as_i32()? >= b.as_i32()?).to_string().as_str())
 );
 
-define_uniform_value_function!(and_booleans, Value::Boolean(a), Value::Boolean(b), {
-    Value::Boolean(
-        "#".to_string().add(
-            (parse_boolean(&a).unwrap() && parse_boolean(&b).unwrap())
-                .to_string()
-                .as_str(),
-        ),
+define_uniform_value_function!(
+    and_booleans,
+    Value::Boolean(_),
+    a,
+    b,
+    Boolean,
+    "#".to_string().add(
+        (parse_boolean_value(&a)? == parse_boolean_value(&b)?)
+            .to_string()
+            .as_str()
     )
-});
+);
 
-define_uniform_value_function!(or_booleans, Value::Boolean(a), Value::Boolean(b), {
-    Value::Boolean(
-        "#".to_string().add(
-            (parse_boolean(&a).unwrap() || parse_boolean(&b).unwrap())
-                .to_string()
-                .as_str(),
-        ),
+define_uniform_value_function!(
+    or_booleans,
+    Value::Boolean(_),
+    a,
+    b,
+    Boolean,
+    "#".to_string().add(
+        (parse_boolean_value(&a)? || parse_boolean_value(&b)?)
+            .to_string()
+            .as_str(),
     )
-});
+);
 
-define_uniform_value_function!(equals_booleans, Value::Boolean(a), Value::Boolean(b), {
-    Value::Boolean(
-        "#".to_string().add(
-            (parse_boolean(&a).unwrap() == parse_boolean(&b).unwrap())
-                .to_string()
-                .as_str(),
-        ),
+define_uniform_value_function!(
+    equals_booleans,
+    Value::Boolean(_),
+    a,
+    b,
+    Boolean,
+    "#".to_string().add(
+        (parse_boolean_value(&a)? == parse_boolean_value(&b)?)
+            .to_string()
+            .as_str(),
     )
-});
+);
 
-define_uniform_value_function!(equals_number, Value::Number(a), Value::Number(b), {
-    Value::Boolean(
-        format!(
-            "#{}",
-            (a.parse::<i32>().unwrap() == b.parse::<i32>().unwrap())
-        )
-        .to_string(),
-    )
-});
+define_uniform_value_function!(
+    equals_number,
+    Value::Number(_),
+    a,
+    b,
+    Boolean,
+    format!("#{}", (a.as_i32() == b.as_i32())).to_string()
+);
 
 pub fn define_function(scope: &mut Scope, name: &str, func: Function) -> Option<Box<Definition>> {
     // Given a scope, we want to add a definition with the given name and that evaluates to the given expression
