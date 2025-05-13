@@ -1,0 +1,124 @@
+// ; [List-of Number] -> [List-of Number]
+// ; produces a sorted version of alon
+// ; assume the numbers are all distinct 
+// (define (quick-sort< alon)
+//   (cond
+//     [(empty? alon) '()]
+//     [else (local ((define pivot (first alon)))
+//             (append (quick-sort< (smallers alon pivot))
+//                     (list pivot)
+//                     (quick-sort< (largers alon pivot))))]))
+
+// ; [List-of Number] Number -> [List-of Number]
+// (define (largers alon n)
+//   (cond
+//     [(empty? alon) '()]
+//     [else (if (> (first alon) n)
+//               (cons (first alon) (largers (rest alon) n))
+//               (largers (rest alon) n))]))
+ 
+// ; [List-of Number] Number -> [List-of Number]
+// (define (smallers alon n)
+//   (cond
+//     [(empty? alon) '()]
+//     [else (if (< (first alon) n)
+//               (cons (first alon) (smallers (rest alon) n))
+//               (smallers (rest alon) n))]))
+
+struct cons [first, rest];
+// {}
+
+func append(a, b) {
+    switch {
+        case (a is #[]): b,
+        case else: make_cons(cons.first(a), append(cons.rest(a), b))
+    }
+};
+
+func sort_with_pivot(list, pivot) {
+    append(quick_sort(smallers(list, pivot)), 
+           append(make_cons(pivot, #[]),
+                  quick_sort(largers(list, pivot))))
+};
+
+func largers(alon, n) {
+    switch {
+        case (alon is #[]): #[],
+        case else: 
+            if (cons.first(alon) > n) {
+                make_cons(cons.first(alon), largers(cons.rest(alon), n))
+            } else {
+                largers(cons.rest(alon), n)
+            }
+    }
+};
+
+func smallers(alon, n) {
+    switch {
+        case (alon is #[]): #[],
+        case else: 
+            if (cons.first(alon) < n) {
+                make_cons(cons.first(alon), smallers(cons.rest(alon), n))
+            } else {
+                smallers(cons.rest(alon), n)
+            }
+    }
+};
+
+func quick_sort(lo_nums) {
+    switch {
+        case (lo_nums is #[]): #[],
+        case else: sort_with_pivot(lo_nums, cons.first(lo_nums))
+    }
+};
+
+func list_to_cons(list) {
+    if (list is #[]) {
+        #[]
+    } else {
+        make_cons(first(list), list_to_cons(rest(list)))
+    }
+};
+
+// quick_sort(make_cons(1, make_cons(2,  make_cons(1 ))
+
+let l = list_to_cons(#[54,  67,  71, 35, 16, 48, 18, 7, 60, 81, 51, 
+28, 2, 56, 84, 23, 86, 57, 32, 92, 63, 87, 94, 11, 4, 44, 98, 40, 21, 24, 91, 25, 
+43, 61, 69, 95, 6, 46, 68, 27, 5, 93, 64, 85, 15, 12, 10, 45, 8, 96, 38, 30, 72, 26, 
+52, 83, 22, 49, 90, 89, 100, 77, 17, 88, 19, 75, 79, 14, 70, 82, 13, 39, 65, 37, 42, 36, 
+34, 31, 3, 59, 47, 74, 41, 78, 1, 58, 20, 9, 97, 29, 73, 80, 76, 33, 53, 99, 66, 55, 62, 5014186, 
+72352, 96054, 79113, 93224, 63621, 74623, 83083, 23398, 7099, 2823, 72266, 64684, 
+65635, 2484, 89813, 97204, 71428, 53106, 41762, 68480, 12797, 37964, 88777, 65316, 
+93329, 98493, 40007, 23890, 36107, 6263, 26222, 18232, 8171, 58688, 62286, 10630, 
+25841, 1415, 17002, 32287, 14615, 30893, 63428, 52730, 96113, 89594, 35089, 29772, 
+65012, 43583, 78979, 33102, 35500, 99679, 21074, 66664, 77711, 29701, 18696, 53191, 
+86907, 85499, 44450, 88979, 15314, 58687, 7657, 96501, 41104, 47534, 21501, 94795, 
+33650, 79975, 44925, 1121, 14621, 17530, 86727, 65992, 15116, 71882, 64895, 51231, 11713, 
+71401, 10961, 29204, 74598, 72119, 43286, 38932, 70997, 17945, 76875, 29588, 56333, 291, 36717, 
+99341, 77824, 73246, 6024, 31588, 97076, 4485, 52748, 59610, 29154, 34236, 34162, 47108, 79289, 37028, 
+81806, 11008, 10578, 30699, 63486, 37373, 12170, 94894, 89459, 89311, 4324, 34461, 22435, 
+13645, 42693, 39685, 83090, 38308, 76049, 26316, 78042, 33259, 34498, 26662, 32621, 
+35884, 68619, 9768, 82466, 22611, 68987, 78398, 14547, 14697, 50818, 89968, 61951, 
+98202, 35353, 67330, 80180, 36439, 33343, 75190, 65673, 49672, 26891, 95136, 42599, 
+59328, 98723, 12100, 98317, 81983, 2760, 53835, 30976, 2220, 17014, 23094, 35902, 
+81306, 49446, 50250, 50763, 74771, 5106, 84341, 71887, 39618, 42419, 25533, 8059, 
+59046, 50131, 46781, 53723, 36171, 68686, 135, 33882, 81097, 78375, 9555, 69524, 
+28079, 27639, 83129, 35228, 26365, 22242, 99861, 86527, 79751, 36409, 32423, 90346, 
+9734, 70169, 55605, 43545, 53265, 65935, 63452, 58262, 23043, 99754, 65980, 41353, 
+89214, 28898, 46606, 21274, 51754, 87300, 79733, 88693, 28427, 95460, 23143, 53135, 
+65011, 19192, 66683, 58531, 54683, 78119, 40134, 65221, 32753, 48285, 58372, 16457, 
+30481, 1052, 89144, 51722, 2481, 79567, 38467, 88951, 44268, 58790, 85072, 95316, 26914, 
+42771, 61086, 80686, 52766, 82866, 95775, 4611, 16283, 13470, 66033, 89873, 2584, 91677, 
+21126, 24795, 89678, 43506, 7034, 83776, 39617, 35130]);
+
+// quick_sort(l);
+
+func count(list) {
+    switch {
+        case (list is #[]): 0,
+        case else: (1 + count(rest(list)))
+    }
+};
+count(l);
+list_to_cons(#[1,2,3,4,5,6,7,8,9]);
+count(list_to_cons(#[1,2,3,4,5,6,7,8,9]));
