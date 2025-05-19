@@ -315,7 +315,7 @@ pub fn define_struct(struct_name: String, fields: Vec<String>, scope: &mut Scope
 
                             Ok(Box::new(Expression::ValueExpr(eval)))
                         }
-                        _ => panic!("this should really be in a result format..."),
+                        _ => Err(LelaError::EvaluationError("Attempted to access a struct on this non struct value".to_string())),
                     }
                 }),
             ),

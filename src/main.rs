@@ -8,6 +8,7 @@ use std::env;
 use std::fs;
 
 pub mod lela;
+pub mod tests;
 
 lalrpop_mod!(pub lela_grammar); // synthesized by LALRPOP
 
@@ -39,13 +40,8 @@ fn map_parsing_to_program(
     }
 }
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    let mut file_path: Option<String> = args.get(1).cloned();
-    if file_path.is_none() {
-        file_path = Some("sample_code.lela".to_string());
-    }
-    let read = read_from_file(&file_path.unwrap());
+fn run_file(file_path: &String) {
+    let read = read_from_file(&file_path);
 
     let mut errors = Vec::new();
 
@@ -62,4 +58,25 @@ fn main() {
             Err(error) => println!("{}", error),
         }
     }
+}
+
+
+use std::thread;
+
+const STACK_SIZE: usize = 4 * 1024 * 1024;
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    let mut file_path: Option<String> = args.get(1).cloned();
+    if file_path.is_none() {
+        file_path = Some("sample_code.lela".to_string());
+    }
+    // Spawn thread with explicit stack size
+    let child = thread::Builder::new()
+        .stack_size(STACK_SIZE)
+        .spawn(move | | run_file(&file_path.unwrap()))
+        .unwrap();
+
+    // Wait for thread to join
+    child.join().unwrap();
 }
